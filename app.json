@@ -28,9 +28,29 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#208AEF",
+          "backgroundColor": "#1E3A8A",
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
+        }
+      ],
+      "expo-secure-store",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "TrustSim cần quyền truy cập camera để chụp ảnh CCCD và chân dung xác thực eKYC."
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "TrustSim cần quyền lưu mã VietQR vào Thư viện ảnh để quét mã thanh toán bằng app ngân hàng.",
+          "savePhotosPermission": "TrustSim cần quyền lưu mã VietQR vào Thư viện ảnh."
+        }
+      ],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "TrustSim cần quyền FaceID / sinh trắc học để xác thực ký kết hợp đồng và bảo mật tài khoản."
         }
       ]
     ],
