@@ -1,56 +1,54 @@
-# Welcome to your Expo app 👋
+# 📱 TrustSim Mobile App
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+> **Sàn đấu giá & Giao dịch chuyển nhượng SIM số đẹp bảo mật cao với cơ chế Quỹ Ký Quỹ Escrow, eKYC AI AWS Rekognition, Chữ ký số PAdES X.509 và Thanh toán VietQR SePay tự động.**
 
-## Get started
+---
 
-1. Install dependencies
+## 📖 Tài Liệu Hướng Dẫn Vận Hành Chi Tiết
+👉 **Xem toàn bộ hướng dẫn cài đặt, cấu hình IP mạng, khắc phục sự cố và kịch bản kiểm thử tại:**
+**[HUONG_DAN_CHAY.md](./HUONG_DAN_CHAY.md)**
 
-   ```bash
-   npm install
-   ```
+---
 
-2. Start the app
+## 🚀 Công Nghệ Cốt Lõi
+- **Framework**: React Native 0.86, React 19, Expo SDK 57, Expo Router 57 (File-based Routing).
+- **Ngôn ngữ**: TypeScript 100% strict type-checking.
+- **Bảo mật**:
+  - Hàng đợi Promise Mutex Queue phòng thủ 3 lớp (`apiClient.ts`) chống văng phiên khi xoay vòng Refresh Token.
+  - Lưu trữ JWT an toàn bằng `expo-secure-store`.
+  - eKYC Chống gian lận bằng luồng Live Camera bắt buộc (không cho phép chọn ảnh từ thư viện).
+  - Tích hợp Sinh trắc học phần cứng `expo-local-authentication` (FaceID / Vân tay) và Bảng vẽ tay Canvas.
+- **Thanh toán**: Tích hợp VietQR SePay chuẩn `compact2`, bộ đếm thời gian 30 phút, sao chép 1 chạm và tự động lưu ảnh QR vào Album ảnh máy bằng `expo-file-system` & `expo-media-library`.
 
-   ```bash
-   npx expo start
-   ```
+---
 
-In the output, you'll find options to open the app in a
+## 🌟 9 Phân Hệ & 24 Màn Hình / Modal Đã Triển Khai
+1. **Xác thực người dùng (SCR-01 $\rightarrow$ SCR-03)**: Đăng ký, Đăng nhập, Xác thực OTP Email.
+2. **Ví Tiền & Thanh Toán (SCR-04 $\rightarrow$ SCR-09)**: Dashboard số dư đóng băng/khả dụng, Nạp tiền VietQR SePay, Rút tiền, Lịch sử & Sao kê chi tiết.
+3. **Thẩm định eKYC AI (SCR-10 $\rightarrow$ SCR-13)**: Hướng dẫn eKYC, Live Cam mặt trước CCCD, Live Cam mặt sau CCCD, Live Selfie khung Oval và Cấp khóa PKI Key Pair.
+4. **Kho SIM & Xác thực 2 Pha (SCR-14 $\rightarrow$ SCR-17)**: Quản lý SIM cá nhân, Tìm kiếm Debounce, Sắp xếp, Xác thực OTP SIM và Radar sóng viễn thông đối soát chính chủ.
+5. **Hợp đồng điện tử PAdES (SCR-18 $\rightarrow$ SCR-19.2)**: Xem hợp đồng HTML, Ký số OTP Email, Bảng vẽ chữ ký tay Canvas, Xác thực Sinh trắc học phần cứng và Kiểm tra toàn vẹn tài liệu SHA-256.
+6. **Bàn giao SIM & Giải ngân Escrow (SCR-20 $\rightarrow$ SCR-21)**: Upload biên bản sang tên nhà mạng, Xác nhận có sóng và Giải ngân Quỹ Escrow tự động.
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+---
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+## ⚡ Khởi Chạy Nhanh (Quick Start)
 
 ```bash
-npm run reset-project
+# 1. Cài đặt thư viện
+npm install
+
+# 2. Kiểm tra type và linter
+npx tsc --noEmit
+npm run lint
+
+# 3. Khởi động ứng dụng
+npx expo start -c
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+- Nhấn phím `a` để mở trên Android Emulator.
+- Nhấn phím `i` để mở trên iOS Simulator.
+- Nhấn phím `w` để mở trên Web Browser.
+- Quét mã QR bằng ứng dụng **Expo Go** trên điện thoại thật.
 
-### Other setup steps
-
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
-
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+Chi tiết cấu hình IP kết nối Backend xin xem file **[HUONG_DAN_CHAY.md](./HUONG_DAN_CHAY.md)**.
