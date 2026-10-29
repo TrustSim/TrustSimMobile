@@ -69,86 +69,110 @@ export default function TransactionsScreen() {
     return val.toLocaleString('vi-VN') + ' đ';
   };
 
-  const renderTransactionItem = ({ item }: { item: WalletTransactionDto }) => (
-    <TouchableOpacity
-      activeOpacity={0.8}
-      onPress={() => setSelectedTx({ ...item, isStatement: false })}
-    >
-      <Card style={styles.itemCard}>
-        <View style={styles.iconCircle}>
-          <Ionicons
-            name={item.type === 'TOP_UP' ? 'arrow-down-circle' : 'arrow-up-circle'}
-            size={24}
-            color={item.type === 'TOP_UP' ? Colors.success : Colors.danger}
-          />
-        </View>
+  const renderTransactionItem = ({ item }: { item: WalletTransactionDto }) => {
+    const isTopUp = (item.walletTransactionType || item.type) === 'TOP_UP';
+    const txStatus = item.transactionStatus || item.status || 'PENDING';
+    return (
+      <TouchableOpacity
+        activeOpacity={0.8}
+        onPress={() => setSelectedTx({ ...item, isStatement: false, status: txStatus, type: isTopUp ? 'TOP_UP' : 'WITHDRAW' })}
+      >
+        <Card style={styles.itemCard}>
+          <View style={styles.iconCircle}>
+            <Ionicons
+              name={isTopUp ? 'arrow-down-circle' : 'arrow-up-circle'}
+              size={24}
+              color={isTopUp ? Colors.success : Colors.danger}
+            />
+          </View>
 
-        <View style={styles.itemContent}>
-          <Text style={styles.itemTitle}>
-            {item.type === 'TOP_UP' ? 'Nạp tiền VietQR' : 'Rút tiền ngân hàng'}
-          </Text>
-          <Text style={styles.itemCode}>{item.transactionCode}</Text>
-          <Text style={styles.itemDate}>
-            {new Date(item.createdAt).toLocaleString('vi-VN')}
-          </Text>
-        </View>
+          <View style={styles.itemContent}>
+            <Text style={styles.itemTitle}>
+              {isTopUp ? 'Nạp tiền VietQR' : 'Rút tiền ngân hàng'}
+            </Text>
+            <Text style={styles.itemCode}>{item.transactionCode}</Text>
+            <Text style={styles.itemDate}>
+              {new Date(item.createdAt).toLocaleString('vi-VN')}
+            </Text>
+          </View>
 
-        <View style={styles.itemRight}>
-          <Text
-            style={[
-              styles.itemAmount,
-              { color: item.type === 'TOP_UP' ? Colors.success : Colors.text },
-            ]}
-          >
-            {item.type === 'TOP_UP' ? '+' : '-'} {formatVnd(item.amount)}
-          </Text>
-          <Badge status={item.status} style={{ marginTop: 4 }} />
-        </View>
-      </Card>
-    </TouchableOpacity>
-  );
+          <View style={styles.itemRight}>
+            <Text
+              style={[
+                styles.itemAmount,
+                { color: isTopUp ? Colors.success : Colors.text },
+              ]}
+            >
+              {isTopUp ? '+' : '-'} {formatVnd(item.amount)}
+            </Text>
+            <Badge status={txStatus} style={{ marginTop: 4 }} />
+          </View>
+        </Card>
+      </TouchableOpacity>
+    );
+  };
 
-  const renderStatementItem = ({ item }: { item: StatementItemDto }) => (
-    <TouchableOpacity
-      activeOpacity={0.8}
-      onPress={() => setSelectedTx({ ...item, isStatement: true })}
-    >
-      <Card style={styles.itemCard}>
-        <View style={styles.iconCircle}>
-          <Ionicons
-            name={
-              item.transactionType.includes('RELEASE')
-                ? 'lock-open-outline'
-                : item.transactionType.includes('HOLD') || item.transactionType.includes('LOCK')
-                ? 'lock-closed-outline'
-                : 'cash-outline'
-            }
-            size={22}
-            color={item.transactionType.includes('RELEASE') ? Colors.success : Colors.warning}
-          />
-        </View>
+  const renderStatementItem = ({ item }: { item: StatementItemDto }) => {
+    const isCredit = item.direction === 'CREDIT';
+    const isDebit = item.direction === 'DEBIT';
+    const amountColor = isCredit ? Colors.success : isDebit ? Colors.danger : Colors.warning;
+    const amountPrefix = isCredit ? '+' : isDebit ? '-' : '';
 
-        <View style={styles.itemContent}>
-          <Text style={styles.itemTitle}>{item.transactionType}</Text>
-          <Text style={styles.itemDesc} numberOfLines={1}>
-            {item.description}
-          </Text>
-          <Text style={styles.itemDate}>
-            {new Date(item.createdAt).toLocaleString('vi-VN')}
-          </Text>
-        </View>
+    return (
+      <TouchableOpacity
+        activeOpacity={0.8}
+        onPress={() => setSelectedTx({ ...item, isStatement: true })}
+      >
+        <Card style={styles.itemCard}>
+          <View style={styles.iconCircle}>
+            <Ionicons
+              name={
+                isCredit
+                  ? 'arrow-down-circle'
+                  : isDebit
+                  ? 'arrow-up-circle'
+                  : item.transactionType?.includes('RELEASE')
+                  ? 'lock-open-outline'
+                  : 'lock-closed-outline'
+              }
+              size={22}
+              color={amountColor}
+            />
+          </View>
 
-        <View style={styles.itemRight}>
-          <Text style={[styles.itemAmount, { color: Colors.primary }]}>
-            {formatVnd(item.amount)}
-          </Text>
-          <Text style={styles.statementBalanceSub}>
-            Sau GD: {formatVnd(item.balanceAfter)}
-          </Text>
-        </View>
-      </Card>
-    </TouchableOpacity>
-  );
+          <View style={styles.itemContent}>
+            <View style={styles.statementTitleRow}>
+              <Text style={styles.itemTitle}>{item.transactionType}</Text>
+              {item.source && (
+                <View style={styles.sourceTag}>
+                  <Text style={styles.sourceTagText}>{item.source}</Text>
+                </View>
+              )}
+            </View>
+            <Text style={styles.itemDesc} numberOfLines={1}>
+              {item.description}
+            </Text>
+            <Text style={styles.itemDate}>
+              {new Date(item.createdAt).toLocaleString('vi-VN')}
+            </Text>
+          </View>
+
+          <View style={styles.itemRight}>
+            <Text style={[styles.itemAmount, { color: amountColor }]}>
+              {amountPrefix} {formatVnd(item.amount)}
+            </Text>
+            {item.direction ? (
+              <Badge status={item.direction} style={{ marginTop: 4 }} />
+            ) : (
+              <Text style={styles.statementBalanceSub}>
+                Sau GD: {formatVnd(item.balanceAfter)}
+              </Text>
+            )}
+          </View>
+        </Card>
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -256,18 +280,22 @@ export default function TransactionsScreen() {
                 <View style={styles.modalAmountBox}>
                   <Text style={styles.modalAmountLabel}>Số tiền biến động:</Text>
                   <Text style={styles.modalAmountValue}>{formatVnd(selectedTx.amount)}</Text>
-                  <Badge status={selectedTx.status} style={{ marginTop: 4 }} />
+                  <Badge status={selectedTx.transactionStatus || selectedTx.status} style={{ marginTop: 4 }} />
                 </View>
 
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Mã giao dịch:</Text>
-                  <Text style={styles.detailValBold}>{selectedTx.transactionCode}</Text>
+                  <Text style={styles.detailValBold}>{selectedTx.transactionCode || selectedTx.referenceCode || selectedTx.id}</Text>
                 </View>
 
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Loại giao dịch:</Text>
                   <Text style={styles.detailVal}>
-                    {selectedTx.type || selectedTx.transactionType}
+                    {selectedTx.walletTransactionType === 'TOP_UP' || selectedTx.type === 'TOP_UP'
+                      ? 'Nạp tiền VietQR'
+                      : selectedTx.walletTransactionType === 'WITHDRAW' || selectedTx.type === 'WITHDRAW'
+                      ? 'Rút tiền ngân hàng'
+                      : (selectedTx.type || selectedTx.transactionType || 'Biến động ví')}
                   </Text>
                 </View>
 
@@ -280,6 +308,18 @@ export default function TransactionsScreen() {
 
                 {selectedTx.isStatement && (
                   <>
+                    {selectedTx.source && (
+                      <View style={styles.detailRow}>
+                        <Text style={styles.detailLabel}>Nguồn nghiệp vụ:</Text>
+                        <Text style={styles.detailValBold}>{selectedTx.source}</Text>
+                      </View>
+                    )}
+                    {selectedTx.direction && (
+                      <View style={styles.detailRow}>
+                        <Text style={styles.detailLabel}>Hướng dòng tiền:</Text>
+                        <Badge status={selectedTx.direction} />
+                      </View>
+                    )}
                     <View style={styles.detailRow}>
                       <Text style={styles.detailLabel}>Số dư trước GD:</Text>
                       <Text style={styles.detailVal}>{formatVnd(selectedTx.balanceBefore)}</Text>
@@ -407,6 +447,22 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: Colors.textMuted,
     marginTop: 4,
+  },
+  statementTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+  },
+  sourceTag: {
+    backgroundColor: 'rgba(30, 58, 138, 0.08)',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: BorderRadius.sm,
+  },
+  sourceTagText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: Colors.primary,
   },
   emptyContainer: {
     alignItems: 'center',

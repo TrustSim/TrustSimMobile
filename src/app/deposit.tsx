@@ -97,7 +97,10 @@ export default function DepositScreen() {
                 await refreshWallet();
                 router.back();
               }}
-              onClose={() => router.back()}
+              onClose={async () => {
+                await refreshWallet();
+                router.back();
+              }}
             />
           ) : (
             /* Deposit Form */

@@ -36,7 +36,7 @@ export default function TabLayout() {
         options={{
           title: 'Trang Chủ',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'home' : 'home-outline'} size={22} color={color} />
+            <Ionicons name={focused ? 'home' : 'home-outline'} size={22} color={color as any} />
           ),
         }}
       />
@@ -48,7 +48,7 @@ export default function TabLayout() {
             <Ionicons
               name={focused ? 'phone-portrait' : 'phone-portrait-outline'}
               size={22}
-              color={color}
+              color={color as any}
             />
           ),
         }}
@@ -58,7 +58,7 @@ export default function TabLayout() {
         options={{
           title: 'Ví Tiền',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'wallet' : 'wallet-outline'} size={22} color={color} />
+            <Ionicons name={focused ? 'wallet' : 'wallet-outline'} size={22} color={color as any} />
           ),
         }}
       />
@@ -67,7 +67,7 @@ export default function TabLayout() {
         options={{
           title: 'Cá Nhân',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'person' : 'person-outline'} size={22} color={color} />
+            <Ionicons name={focused ? 'person' : 'person-outline'} size={22} color={color as any} />
           ),
         }}
       />

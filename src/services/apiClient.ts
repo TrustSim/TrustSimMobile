@@ -10,6 +10,7 @@ export const apiClient = axios.create({
   headers: {
     Accept: 'application/json',
     'Content-Type': 'application/json',
+    'ngrok-skip-browser-warning': 'true',
   },
 });
 
@@ -37,12 +38,33 @@ export const setOnSessionExpired = (cb: () => void) => {
   onSessionExpiredCallback = cb;
 };
 
-// Request Interceptor: Attach Access Token
+// Request Interceptor: Attach Access Token & handle FormData
 apiClient.interceptors.request.use(async (config) => {
   const token = await appStorage.getItem(Config.TOKEN_STORAGE_KEY);
   if (token && config.headers) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+
+  // Handle FormData in React Native:
+  // 1. Prevent Axios default transformRequest from serializing FormData into JSON string
+  // 2. Strip 'Content-Type' so native networking layer (OkHttp / NSURLSession) automatically
+  //    generates 'multipart/form-data; boundary=...'
+  const isFormData =
+    config.data instanceof FormData ||
+    (config.data && typeof config.data === 'object' && '_parts' in config.data);
+
+  if (isFormData) {
+    config.transformRequest = [(data) => data];
+    if (config.headers) {
+      delete config.headers['Content-Type'];
+      delete config.headers['content-type'];
+      if (typeof (config.headers as any).delete === 'function') {
+        (config.headers as any).delete('Content-Type');
+        (config.headers as any).delete('content-type');
+      }
+    }
+  }
+
   return config;
 });
 
@@ -84,7 +106,10 @@ apiClient.interceptors.response.use(
           const res = await axios.post<ApiResponse<{ token: string; expiresAt: string }>>(
             `${Config.API_BASE_URL}/auth/refresh-token`,
             {},
-            { withCredentials: true }
+            {
+              withCredentials: true,
+              headers: { 'ngrok-skip-browser-warning': 'true' },
+            }
           );
 
           const newToken = res.data?.data?.token;

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   RefreshControl,
   ScrollView,
@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Badge } from '../../components/Badge';
@@ -43,9 +43,12 @@ export default function WalletScreen() {
     setRefreshing(false);
   };
 
-  useEffect(() => {
-    fetchRecentHistory();
-  }, [fetchRecentHistory]);
+  useFocusEffect(
+    useCallback(() => {
+      refreshWallet();
+      fetchRecentHistory();
+    }, [refreshWallet, fetchRecentHistory])
+  );
 
   const formatVnd = (amount?: number) => {
     if (typeof amount !== 'number') return '0 đ';
@@ -151,39 +154,43 @@ export default function WalletScreen() {
         </View>
 
         {recentTransactions.length > 0 ? (
-          recentTransactions.map((tx) => (
-            <Card key={tx.id} style={styles.txItemCard}>
-              <View style={styles.txIconBox}>
-                <Ionicons
-                  name={tx.type === 'TOP_UP' ? 'arrow-down' : 'arrow-up'}
-                  size={20}
-                  color={tx.type === 'TOP_UP' ? Colors.success : Colors.danger}
-                />
-              </View>
+          recentTransactions.map((tx) => {
+            const isTopUp = (tx.walletTransactionType || tx.type) === 'TOP_UP';
+            const txStatus = tx.transactionStatus || tx.status || 'PENDING';
+            return (
+              <Card key={tx.id} style={styles.txItemCard}>
+                <View style={styles.txIconBox}>
+                  <Ionicons
+                    name={isTopUp ? 'arrow-down' : 'arrow-up'}
+                    size={20}
+                    color={isTopUp ? Colors.success : Colors.danger}
+                  />
+                </View>
 
-              <View style={styles.txContentBox}>
-                <Text style={styles.txTitle}>
-                  {tx.type === 'TOP_UP' ? 'Nạp tiền vào ví' : 'Rút tiền ngân hàng'}
-                </Text>
-                <Text style={styles.txCode}>{tx.transactionCode}</Text>
-                <Text style={styles.txDate}>
-                  {new Date(tx.createdAt).toLocaleString('vi-VN')}
-                </Text>
-              </View>
+                <View style={styles.txContentBox}>
+                  <Text style={styles.txTitle}>
+                    {isTopUp ? 'Nạp tiền vào ví' : 'Rút tiền ngân hàng'}
+                  </Text>
+                  <Text style={styles.txCode}>{tx.transactionCode}</Text>
+                  <Text style={styles.txDate}>
+                    {new Date(tx.createdAt).toLocaleString('vi-VN')}
+                  </Text>
+                </View>
 
-              <View style={styles.txAmountBox}>
-                <Text
-                  style={[
-                    styles.txAmount,
-                    { color: tx.type === 'TOP_UP' ? Colors.success : Colors.text },
-                  ]}
-                >
-                  {tx.type === 'TOP_UP' ? '+' : '-'} {formatVnd(tx.amount)}
-                </Text>
-                <Badge status={tx.status} style={{ marginTop: 2 }} />
-              </View>
-            </Card>
-          ))
+                <View style={styles.txAmountBox}>
+                  <Text
+                    style={[
+                      styles.txAmount,
+                      { color: isTopUp ? Colors.success : Colors.text },
+                    ]}
+                  >
+                    {isTopUp ? '+' : '-'} {formatVnd(tx.amount)}
+                  </Text>
+                  <Badge status={txStatus} style={{ marginTop: 2 }} />
+                </View>
+              </Card>
+            );
+          })
         ) : (
           <Card style={styles.emptyCard}>
             <Ionicons name="receipt-outline" size={36} color={Colors.textMuted} />

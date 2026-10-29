@@ -65,8 +65,13 @@ export const authService = {
   async changePassword(data: {
     currentPassword: string;
     newPassword: string;
+    confirmNewPassword?: string;
   }): Promise<ApiResponse<boolean>> {
-    const res = await apiClient.put<ApiResponse<boolean>>('/auth/change-password', data);
+    const res = await apiClient.put<ApiResponse<boolean>>('/auth/change-password', {
+      currentPassword: data.currentPassword,
+      newPassword: data.newPassword,
+      confirmNewPassword: data.confirmNewPassword || data.newPassword,
+    });
     return res.data;
   },
 
@@ -79,10 +84,17 @@ export const authService = {
   // Reset password using OTP
   async resetPassword(data: {
     email: string;
-    otpCode: string;
+    resetCode?: string;
+    otpCode?: string;
     newPassword: string;
+    confirmNewPassword?: string;
   }): Promise<ApiResponse<boolean>> {
-    const res = await apiClient.post<ApiResponse<boolean>>('/auth/reset-password', data);
+    const res = await apiClient.post<ApiResponse<boolean>>('/auth/reset-password', {
+      email: data.email,
+      resetCode: data.resetCode || data.otpCode || '',
+      newPassword: data.newPassword,
+      confirmNewPassword: data.confirmNewPassword || data.newPassword,
+    });
     return res.data;
   },
 };

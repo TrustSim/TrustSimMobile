@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -20,6 +20,7 @@ import { Input } from '../../components/Input';
 import { BorderRadius, Colors, Spacing } from '../../constants/theme';
 import { extractErrorMessage } from '../../services/apiClient';
 import { simService } from '../../services/simService';
+import { FormatRhythmDto } from '../../types';
 
 export default function RegisterSimScreen() {
   const router = useRouter();
@@ -27,9 +28,22 @@ export default function RegisterSimScreen() {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [price, setPrice] = useState('');
   const [carrierCode, setCarrierCode] = useState('MBF');
-  const [formatRhythm, setFormatRhythm] = useState('');
+  const [rhythms, setRhythms] = useState<FormatRhythmDto[]>([]);
+  const [selectedRhythmId, setSelectedRhythmId] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    simService
+      .getFormatRhythms()
+      .then((res) => {
+        if (res.success && res.data && res.data.length > 0) {
+          setRhythms(res.data);
+          setSelectedRhythmId(res.data[0].id);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const carriers = [
     { code: 'MBF', name: 'Mobifone', id: 'b1c2d3e4-0000-0000-0000-000000000001' },
@@ -39,26 +53,23 @@ export default function RegisterSimScreen() {
 
   const handleRegister = async () => {
     const cleanPhone = phoneNumber.replace(/[^0-9]/g, '');
-    const numPrice = parseInt(price.replace(/[^0-9]/g, ''), 10);
 
     if (cleanPhone.length < 10) {
       setError('Vui lòng nhập số điện thoại hợp lệ 10 số.');
       return;
     }
 
-    if (isNaN(numPrice) || numPrice <= 0) {
-      setError('Vui lòng nhập giá bán hợp lệ.');
+    if (!selectedRhythmId) {
+      setError('Vui lòng chọn kiểu nhịp định dạng số SIM.');
       return;
     }
 
     setError(null);
     setLoading(true);
     try {
-      const selectedCarrier = carriers.find((c) => c.code === carrierCode) || carriers[0];
       await simService.registerSim({
         phoneNumber: cleanPhone,
-        price: numPrice,
-        carrierId: selectedCarrier.id,
+        formatRhythmId: selectedRhythmId,
       });
 
       Alert.alert(
@@ -139,13 +150,29 @@ export default function RegisterSimScreen() {
               ))}
             </View>
 
-            <Input
-              label="Thể loại / Dòng SIM (Tùy chọn)"
-              placeholder="Ví dụ: Lục quý 8, Bát quý, Sảnh tiến..."
-              value={formatRhythm}
-              onChangeText={setFormatRhythm}
-              leftIcon={<Ionicons name="pricetag-outline" size={18} color={Colors.textSecondary} />}
-            />
+            {/* Format Rhythm selection from Backend */}
+            <Text style={styles.fieldLabel}>ĐỊNH DẠNG / NHỊP SIM:</Text>
+            <View style={styles.carrierRow}>
+              {rhythms.map((r) => (
+                <TouchableOpacity
+                  key={r.id}
+                  style={[
+                    styles.carrierChip,
+                    selectedRhythmId === r.id && styles.carrierChipSelected,
+                  ]}
+                  onPress={() => setSelectedRhythmId(r.id)}
+                >
+                  <Text
+                    style={[
+                      styles.carrierChipText,
+                      selectedRhythmId === r.id && styles.carrierChipTextSelected,
+                    ]}
+                  >
+                    {r.formatRhythmName || r.value}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
 
             <Button
               title="THÊM SIM MỚI"

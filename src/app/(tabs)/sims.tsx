@@ -4,6 +4,7 @@ import {
   Alert,
   FlatList,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -19,7 +20,7 @@ import { Card } from '../../components/Card';
 import { BorderRadius, Colors, Spacing } from '../../constants/theme';
 import { useAuth } from '../../context/AuthContext';
 import { simService } from '../../services/simService';
-import { SimOwnershipDto, SimOwnershipSortBy } from '../../types';
+import { SimOwnershipDto, SimOwnershipSortBy, SortOrder } from '../../types';
 
 export default function MySimsScreen() {
   const router = useRouter();
@@ -29,7 +30,8 @@ export default function MySimsScreen() {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [sortBy, setSortBy] = useState<SimOwnershipSortBy>('CreatedDate_Desc');
+  const [selectedStatus, setSelectedStatus] = useState<string | undefined>(undefined);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(SortOrder.Desc);
   const [pageIndex, setPageIndex] = useState(1);
   const [hasNextPage, setHasNextPage] = useState(false);
 
@@ -39,8 +41,10 @@ export default function MySimsScreen() {
 
     try {
       const res = await simService.getMyOwnerships({
-        search: searchTerm.trim() || undefined,
-        sortBy,
+        keyword: searchTerm.trim() || undefined,
+        status: (selectedStatus as any) || undefined,
+        sortBy: SimOwnershipSortBy.CreatedDate,
+        sortOrder,
         pageIndex: page,
         pageSize: 10,
       });
@@ -61,7 +65,7 @@ export default function MySimsScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [searchTerm, sortBy]);
+  }, [searchTerm, selectedStatus, sortOrder]);
 
   useEffect(() => {
     fetchSims(true, 1);
@@ -189,16 +193,48 @@ export default function MySimsScreen() {
         <TouchableOpacity
           style={styles.sortButton}
           onPress={() => {
-            setSortBy((prev) =>
-              prev === 'CreatedDate_Desc' ? 'CreatedDate_Asc' : 'CreatedDate_Desc'
+            setSortOrder((prev) =>
+              prev === SortOrder.Desc ? SortOrder.Asc : SortOrder.Desc
             );
           }}
         >
           <Ionicons name="swap-vertical" size={16} color={Colors.primary} />
           <Text style={styles.sortText}>
-            {sortBy === 'CreatedDate_Desc' ? 'Mới nhất' : 'Cũ nhất'}
+            {sortOrder === SortOrder.Desc ? 'Mới nhất' : 'Cũ nhất'}
           </Text>
         </TouchableOpacity>
+      </View>
+
+      {/* Status Filter Chips */}
+      <View>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.statusChipsRow}
+        >
+          {[
+            { key: undefined, label: 'Tất cả' },
+            { key: 'ACTIVE', label: 'Đang hoạt động' },
+            { key: 'TRANSFERRED', label: 'Đã chuyển nhượng' },
+            { key: 'REVOKED', label: 'Đã thu hồi' },
+          ].map((tab) => {
+            const isActive = selectedStatus === tab.key;
+            return (
+              <TouchableOpacity
+                key={tab.label}
+                style={[styles.statusChip, isActive && styles.statusChipActive]}
+                onPress={() => {
+                  setSelectedStatus(tab.key);
+                  setPageIndex(1);
+                }}
+              >
+                <Text style={[styles.statusChipText, isActive && styles.statusChipTextActive]}>
+                  {tab.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
       </View>
 
       {/* SIM List */}
@@ -223,7 +259,7 @@ export default function MySimsScreen() {
             <View style={styles.loadingFooter}>
               <ActivityIndicator size="small" color={Colors.primary} />
             </View>
-          ) : null
+          ) : undefined
         }
         ListEmptyComponent={
           !loading ? (
@@ -234,7 +270,7 @@ export default function MySimsScreen() {
                 Bấm nút &quot;+ Thêm SIM&quot; phía trên để liên kết số điện thoại chính chủ của bạn.
               </Text>
             </View>
-          ) : null
+          ) : undefined
         }
       />
     </SafeAreaView>
@@ -396,5 +432,31 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 4,
     paddingHorizontal: Spacing.xl,
+  },
+  statusChipsRow: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.xs,
+    gap: Spacing.xs,
+  },
+  statusChip: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  statusChipActive: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  statusChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+  },
+  statusChipTextActive: {
+    color: Colors.textInverse,
+    fontWeight: '700',
   },
 });

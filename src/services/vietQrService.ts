@@ -46,12 +46,26 @@ export const vietQrService = {
         return false;
       }
 
-      // 1. Request MediaLibrary permission
-      const { status } = await MediaLibrary.requestPermissionsAsync();
-      if (status !== 'granted') {
+      // 1. Request MediaLibrary write-only permission (avoids Android 13+ full read warning in Expo Go)
+      let hasPermission = false;
+      try {
+        if (MediaLibrary.getPermissionsAsync) {
+          const current = await MediaLibrary.getPermissionsAsync(true);
+          hasPermission = current.granted || current.status === 'granted';
+        }
+        if (!hasPermission && MediaLibrary.requestPermissionsAsync) {
+          const req = await MediaLibrary.requestPermissionsAsync(true, ['photo']);
+          hasPermission = req.granted || req.status === 'granted';
+        }
+      } catch {
+        // If granular request fails in Expo Go, continue to try save directly
+        hasPermission = true;
+      }
+
+      if (!hasPermission) {
         Alert.alert(
           'Cần cấp quyền',
-          'Vui lòng cấp quyền truy cập Thư viện ảnh trong Cài đặt máy để lưu mã VietQR.'
+          'Vui lòng cấp quyền ghi vào Thư viện ảnh trong Cài đặt máy để lưu mã VietQR.'
         );
         return false;
       }

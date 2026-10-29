@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Image,
   StyleSheet,
   Text,
@@ -11,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Button } from './Button';
 import { Card } from './Card';
 import { BorderRadius, Colors, Spacing } from '../constants/theme';
+import { apiClient } from '../services/apiClient';
 import { vietQrService } from '../services/vietQrService';
 import { walletService } from '../services/walletService';
 import { DepositResponseDto } from '../types';
@@ -59,7 +61,8 @@ export const VietQrPaymentView: React.FC<VietQrPaymentViewProps> = ({
     const pollInterval = setInterval(async () => {
       try {
         const res = await walletService.getTransactionById(depositData.transactionId);
-        if (res.success && res.data?.status === 'COMPLETED') {
+        const status = res.data?.transactionStatus || res.data?.status;
+        if (res.success && status === 'COMPLETED') {
           setIsCompleted(true);
           setIsPolling(false);
           clearInterval(pollInterval);
@@ -71,6 +74,39 @@ export const VietQrPaymentView: React.FC<VietQrPaymentViewProps> = ({
 
     return () => clearInterval(pollInterval);
   }, [depositData.transactionId, isPolling, isCompleted]);
+
+  const [isSimulating, setIsSimulating] = useState(false);
+  const handleSimulatePayment = async () => {
+    setIsSimulating(true);
+    try {
+      await apiClient.post(
+        '/wallets/sepay-webhook',
+        {
+          id: Math.floor(Math.random() * 90000000),
+          gateway: 'VietinBank',
+          transactionDate: new Date().toISOString(),
+          accountNumber: '103868686868',
+          code: depositData.transactionCode,
+          content: `TrustSim ${depositData.transactionCode}`,
+          transferType: 'in',
+          transferAmount: depositData.amount,
+          accumulated: 1050000000,
+          referenceCode: 'REF-' + Math.floor(Math.random() * 900000),
+        },
+        {
+          headers: {
+            Authorization: 'Apikey AQGX357TXGZJGR59L3R0A6CNFUKILN4DGCYV2FBHBOXQPVQQEDWTYXMHTK1T4DJC',
+          },
+        }
+      );
+      setIsCompleted(true);
+      setIsPolling(false);
+    } catch {
+      Alert.alert('Lỗi', 'Không thể gửi webhook mô phỏng thanh toán.');
+    } finally {
+      setIsSimulating(false);
+    }
+  };
 
   const formatTimer = (totalSeconds: number) => {
     const minutes = Math.floor(totalSeconds / 60);
@@ -232,6 +268,15 @@ export const VietQrPaymentView: React.FC<VietQrPaymentViewProps> = ({
         <ActivityIndicator size="small" color={Colors.primary} />
         <Text style={styles.pollingText}>Đang chờ hệ thống ngân hàng xác nhận giao dịch...</Text>
       </View>
+
+      {/* Dev Simulation Helper for Testing without Real Bank Transfer */}
+      <Button
+        title="⚡ Mô Phỏng Đã Chuyển Khoản (Test Dev)"
+        variant="outline"
+        loading={isSimulating}
+        onPress={handleSimulatePayment}
+        style={{ marginVertical: Spacing.xs, borderColor: Colors.accent }}
+      />
 
       <Button
         title="Đóng / Hoàn thành sau"

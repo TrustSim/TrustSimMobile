@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
+import * as ScreenOrientation from 'expo-screen-orientation';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Badge } from '../../components/Badge';
@@ -14,6 +15,13 @@ import { useAuth } from '../../context/AuthContext';
 export default function KycIntroScreen() {
   const router = useRouter();
   const { profile } = useAuth();
+
+  // Guarantee portrait orientation when entering this screen
+  useFocusEffect(
+    useCallback(() => {
+      ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
+    }, [])
+  );
 
   const isVerified = profile?.verificationStatus === 'VERIFIED';
 
