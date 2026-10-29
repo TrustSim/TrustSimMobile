@@ -25,7 +25,68 @@ export type TransactionStatus = 'PENDING' | 'COMPLETED' | 'FAILED' | 'CANCELLED'
 export type OwnershipStatus = 'UNVERIFIED' | 'ACTIVE' | 'ENDED' | 'DISPUTED' | 'REVOKED';
 export type ContractStatus = 'DRAFT' | 'PENDING_BUYER_SIGNATURE' | 'PENDING_SELLER_SIGNATURE' | 'FULLY_SIGNED' | 'CANCELLED' | 'EXPIRED';
 export type TradeTransactionStatus = 'PendingEscrow' | 'PendingContractSigning' | 'PendingTransfer' | 'Completed' | 'Cancelled' | 'Disputed';
-export type SimOwnershipSortBy = 'CreatedDate_Desc' | 'CreatedDate_Asc' | 'AssignedDate_Desc' | 'Status_Desc';
+export type SimOwnershipSortByLegacy = 'CreatedDate_Desc' | 'CreatedDate_Asc' | 'AssignedDate_Desc' | 'Status_Desc';
+
+export enum SortOrder {
+  Desc = 0,
+  Asc = 1,
+}
+
+export type SortOrderType = 0 | 1 | 'Desc' | 'Asc';
+
+export enum SimOwnershipSortBy {
+  CreatedDate = 1,
+  AssignedDate = 2,
+  Status = 3,
+}
+
+export enum WalletTransactionSortBy {
+  CreatedAt = 1,
+  Amount = 2,
+  Status = 3,
+  TransactionType = 4,
+  TransactionCode = 5,
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// QUERY FILTER INTERFACES
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface BaseQueryFilter<TSortBy = number> {
+  pageIndex?: number;
+  pageSize?: number;
+  keyword?: string;
+  fromDate?: string;
+  toDate?: string;
+  sortBy?: TSortBy;
+  sortOrder?: SortOrderType;
+}
+
+export interface UnifiedStatementQueryFilter extends BaseQueryFilter<WalletTransactionSortBy | number> {
+  sourceType?: 'WALLET' | 'AUCTION' | 'AUCTION_DEPOSIT' | 'ESCROW' | 'COMPENSATION';
+  direction?: 'CREDIT' | 'DEBIT' | 'LOCK';
+  status?: 'PENDING' | 'SUCCESS' | 'FAILED' | TransactionStatus;
+  transactionType?: string;
+  minAmount?: number;
+  maxAmount?: number;
+}
+
+export interface SimOwnershipQueryFilter extends BaseQueryFilter<SimOwnershipSortBy> {
+  status?: 'ACTIVE' | 'TRANSFERRED' | 'REVOKED' | OwnershipStatus;
+  simId?: string;
+}
+
+export interface UserKycHistoryQueryFilter extends BaseQueryFilter<number> {
+  status?: 'PENDING_VERIFICATION' | 'VERIFIED' | 'REJECTED' | 'EXPIRED' | VerificationStatus;
+  idCardNumber?: string;
+}
+
+export interface WalletTransactionQueryFilter extends BaseQueryFilter<WalletTransactionSortBy> {
+  type?: WalletTransactionType | string;
+  status?: TransactionStatus | string;
+  minAmount?: number;
+  maxAmount?: number;
+}
 
 // Auth Types
 export interface RegisterRequestDto {
@@ -91,24 +152,39 @@ export interface WalletDto {
 
 export interface WalletTransactionDto {
   id: string;
+  walletId?: string;
   transactionCode: string;
-  type: WalletTransactionType;
+  walletTransactionType?: WalletTransactionType;
+  type?: WalletTransactionType;
   amount: number;
-  status: TransactionStatus;
+  balanceBefore?: number;
+  balanceAfter?: number;
+  transactionStatus?: TransactionStatus;
+  status?: TransactionStatus;
   createdAt: string;
+  completedAt?: string;
+  expiredAt?: string;
   description?: string;
+  qrCodeUrl?: string;
+  destinationBankCode?: string;
+  destinationBankName?: string;
+  destinationAccountNumberMasked?: string;
+  destinationAccountHolderName?: string;
 }
 
 export interface StatementItemDto {
   id: string;
-  transactionCode: string;
+  source?: 'WALLET' | 'AUCTION' | 'AUCTION_DEPOSIT' | 'ESCROW' | 'COMPENSATION' | string;
   transactionType: string;
+  direction?: 'CREDIT' | 'DEBIT' | 'LOCK' | string;
+  referenceCode?: string;
+  transactionCode?: string;
   amount: number;
   balanceBefore: number;
   balanceAfter: number;
   description: string;
   createdAt: string;
-  status: TransactionStatus;
+  status: string;
 }
 
 export interface DepositRequestDto {
@@ -145,17 +221,42 @@ export interface EkycSubmitResultDto {
   faceSimilarityScore: number;
   extractedFullName: string;
   extractedIdentityNumber: string;
-  extractedDateOfBirth: string;
+  extractedDateOfBirth?: string;
+  extractedAddress?: string;
+  frontCardUrl?: string;
+  backCardUrl?: string;
+  selfieUrl?: string;
   message: string;
   submittedAt: string;
 }
 
 export interface KycStatusDto {
-  verificationStatus: VerificationStatus;
-  isVerified: boolean;
-  identityNumber?: string;
+  id?: string;
+  userProfileId?: string;
+  userAccountId?: string;
+  userName?: string;
   fullName?: string;
+  identityNumber?: string;
+  frontIdCardUrl?: string;
+  backIdCardUrl?: string;
+  faceSelfieUrl?: string;
+  faceSimilarityScore?: number;
+  verificationMethod?: string;
+  verificationStatus: VerificationStatus;
+  isVerified?: boolean;
+  rejectionReason?: string;
+  submittedAt?: string;
+  verifiedAt?: string;
   dateOfBirth?: string;
+}
+
+// Format Rhythm Types
+export interface FormatRhythmDto {
+  id: string;
+  formatRhythmName: string;
+  value: string;
+  description: string;
+  basePriceFactor: number;
 }
 
 // SIM Ownership Types
@@ -178,27 +279,35 @@ export interface SimOwnershipDto {
 
 export interface SimRegisterRequestDto {
   phoneNumber: string;
-  price: number;
-  carrierId: string;
-  formatRhythmId?: string;
+  formatRhythmId: string;
+  categoryIds?: string[];
+  phonePrefixId?: string;
+  price?: number;
+  carrierId?: string;
 }
 
 // Contract & Handover Types
 export interface ContractPreviewDto {
-  contractId: string;
   tradeId: string;
-  tradeCode: string;
+  tradeTransactionCode?: string;
+  tradeCode?: string;
+  contractId?: string;
   contractStatus: ContractStatus;
-  buyerFullName: string;
+  buyerFullName?: string;
+  buyerName?: string;
   buyerSigned: boolean;
   buyerSignedAt?: string | null;
-  sellerFullName: string;
+  sellerFullName?: string;
+  sellerName?: string;
   sellerSigned: boolean;
   sellerSignedAt?: string | null;
   htmlContent: string;
+  documentPdfUrl?: string | null;
   pdfDocumentUrl?: string | null;
   winningNoticeUrl?: string;
+  simPhoneNumber?: string;
   simNumber?: string;
+  escrowAmount?: number;
   documentHash?: string;
 }
 
@@ -210,47 +319,81 @@ export interface ContractOtpSendResultDto {
 }
 
 export interface ContractSignResultDto {
-  contractId: string;
   tradeId: string;
-  contractStatus: ContractStatus;
-  isFullySigned: boolean;
+  tradeTransactionCode?: string;
+  signatureRole?: string;
   signedAt: string;
+  isFullySigned: boolean;
+  contractStatus: ContractStatus | string;
+  message: string;
+  contractId?: string;
   documentUrl?: string;
   documentHash?: string;
-  message: string;
 }
 
 export interface ContractIntegrityResultDto {
   isValid: boolean;
   documentStatus: string;
-  expectedDocumentHash: string;
-  providedSha256: string;
+  expectedDocumentHash?: string;
+  providedSha256?: string;
   hashMatched: boolean;
-  padesSignatureSerial: string;
-  tsaTimestamp: string;
-  tsaAuthority: string;
-  sealedAt: string;
+  padesSignatureSerial?: string;
+  padesSignatureHash?: string;
+  tsaTimestamp?: string;
+  tsaAuthority?: string;
+  sealedAt?: string;
+  isAutoEnforced?: boolean;
   totalSignatures: number;
   message: string;
 }
 
+export interface TransferProofDto {
+  id?: string;
+  proofImageUrl?: string;
+  imageUrl?: string;
+  description?: string;
+  proofStatus?: string;
+  verifiedAt?: string;
+  createdAt?: string;
+  createdDate?: string;
+}
+
 export interface SimTransferProgressDto {
   tradeId: string;
-  tradeCode: string;
-  tradeStatus: TradeTransactionStatus;
+  tradeTransactionCode?: string;
+  tradeCode?: string;
+  simTransferId?: string;
+  simTransferStatus?: string;
+  tradeStatus?: TradeTransactionStatus | string;
   escrowAmount: number;
   escrowStatus: string;
+  simPhoneNumber?: string;
+  canConfirmTransfer?: boolean;
+  canConfirm?: boolean;
+  canSubmitProof?: boolean;
+  isSeller?: boolean;
+  isBuyer?: boolean;
+  deadline?: string;
+  transferDeadline?: string;
+  proofs?: TransferProofDto[];
   transferProofUrl?: string | null;
   transferProofNote?: string | null;
-  transferDeadline: string;
-  canConfirm: boolean;
+  platformFeePercent?: number;
+  platformFeeAmount?: number;
+  netSellerPayout?: number;
+  completedAt?: string;
+  message?: string;
 }
 
 export interface SimTransferConfirmResultDto {
   tradeId: string;
-  tradeCode: string;
-  tradeStatus: TradeTransactionStatus;
+  tradeTransactionCode?: string;
+  tradeCode?: string;
+  simTransferStatus?: string;
+  tradeStatus?: TradeTransactionStatus | string;
   escrowStatus: string;
   liquidationDocumentUrl?: string;
-  message: string;
+  netSellerPayout?: number;
+  completedAt?: string;
+  message?: string;
 }

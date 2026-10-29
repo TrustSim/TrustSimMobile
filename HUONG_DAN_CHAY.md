@@ -122,9 +122,19 @@ Backend mặc định chạy tại cổng `5130` (hoặc `http://localhost:5130/
    ```bash
    EXPO_PUBLIC_API_URL=http://192.168.1.25:5130/api
    ```
-3. **Lưu ý Tường Lửa (Windows Firewall)**: Cho phép kết nối đến cổng `5130` trên máy tính bằng lệnh PowerShell (Run as Administrator):
+3. **Lưu ý Tường Lửa (Windows Firewall)**: Cho phép kết nối đến cổng `5130` (Backend API) và `8081` (Expo Metro Bundler) bằng lệnh PowerShell (Run as Administrator):
    ```powershell
+   # Cho phép kết nối Backend API
    New-NetFirewallRule -DisplayName "TrustSim Backend 5130" -Direction Inbound -LocalPort 5130 -Protocol TCP -Action Allow
+
+   # Cho phép kết nối Expo Metro Bundler (Tránh lỗi Something went wrong khi quét mã QR)
+   New-NetFirewallRule -DisplayName "Expo Metro 8081" -Direction Inbound -LocalPort 8081 -Protocol TCP -Action Allow
+   ```
+
+4. **Trường hợp máy tính có card mạng ảo (Mobile Hotspot `192.168.137.1`)**:
+   Nếu máy tính bật tính năng phát Hotspot, Expo có thể nhận nhầm IP ảo này khiến điện thoại không thể tải app. Hãy thêm dòng sau vào file `.env` để cố định IP Wi-Fi thật của máy:
+   ```bash
+   REACT_NATIVE_PACKAGER_HOSTNAME=192.168.2.63
    ```
 
 ---
@@ -149,11 +159,15 @@ npm run lint
 
 ### Bước 3: Khởi động Expo Metro Bundler
 ```bash
-# Lệnh thông thường
-npm start
+# CÁCH 1: Khởi động chế độ Tunnel (KHUYÊN DÙNG NHẤT cho điện thoại thật)
+# Tự động vượt qua tường lửa Windows, chống nhận nhầm card mạng ảo, hỗ trợ cả 4G/5G:
+npx expo start --tunnel -c
 
-# Hoặc khởi động với tùy chọn xóa cache (Khuyên dùng khi đổi IP hoặc thêm gói)
+# CÁCH 2: Khởi động mạng LAN nội bộ (yêu cầu chung Wi-Fi và mở port 8081):
 npx expo start -c
+
+# CÁCH 3: Chạy trực tiếp trên trình duyệt Web máy tính (Không cần điện thoại):
+npx expo start --web
 ```
 
 Sau khi chạy lệnh, màn hình console sẽ hiển thị:
@@ -238,9 +252,10 @@ Giao diện ứng dụng kết nối trực tiếp với API Backend và hiển 
 | :--- | :--- | :--- |
 | **Network Error / Không thể kết nối máy chủ** | App trỏ sai IP hoặc máy tính chặn tường lửa port 5130. | 1. Chạy Android Emulator: dùng `http://10.0.2.2:5130/api`.<br>2. Chạy máy thật: tạo file `.env` với IP Wi-Fi máy tính.<br>3. Chạy lệnh mở port Firewall trong PowerShell (mục 4). |
 | **Lỗi quyền Camera khi vào eKYC** | Chưa cấp quyền truy cập Camera trên thiết bị. | Bấm vào nút "Cấp Quyền Camera" hiển thị trên màn hình, hoặc vào Cài đặt thiết bị $\rightarrow$ Expo Go $\rightarrow$ Bật quyền "Camera". |
-| **Lỗi ExpoMediaLibraryNext trong Expo Go** | Expo SDK 57 tách module Next architecture chưa tích hợp sẵn trong Expo Go. | Đã được xử lý tự động trong `vietQrService.ts` bằng cơ chế Safe Lazy Loading `expo-media-library/legacy`. |
+| **Lỗi ExpoMediaLibraryNext trong Expo Go** | Expo SDK 57/58 tách module Next architecture chưa tích hợp sẵn trong Expo Go. | Đã được xử lý tự động trong `vietQrService.ts` bằng cơ chế Safe Lazy Loading `expo-media-library/legacy`. |
 | **Lỗi không lưu được ảnh VietQR** | Chưa cấp quyền đọc/ghi Thư viện ảnh. | Vào Cài đặt máy $\rightarrow$ Cho phép Expo Go truy cập Thư viện ảnh ("Photos / Media Library"). |
 | **React Native / Metro cache lỗi** | Thư mục cache `.expo` hoặc Metro bị xung đột sau khi cài gói mới. | Dừng server (Ctrl+C), chạy: `npx expo start -c` để xóa toàn bộ cache và nạp lại từ đầu. |
+| **Quét mã QR trên Expo Go bị lỗi "Something went wrong"** | 1. Tường lửa Windows chặn cổng Metro `8081`.<br>2. Máy tính có card mạng ảo (Hotspot `192.168.137.1`) khiến Expo chọn nhầm IP.<br>3. Điện thoại và máy tính không chung mạng hoặc Wi-Fi bật Client Isolation. | 1. **Khuyên dùng nhất**: Dùng chế độ Tunnel: `npx expo start --tunnel -c`.<br>2. Nếu dùng LAN: Thêm `REACT_NATIVE_PACKAGER_HOSTNAME=<IP_WIFI>` vào `.env` và mở cổng 8081 bằng PowerShell Administrator.<br>3. Hoặc gõ phím `w` / `npx expo start --web` để chạy ngay trên trình duyệt máy tính. |
 | **TypeScript báo lỗi không nhận type** | Chưa chạy build type declaration. | Chạy `npx tsc --noEmit` để rà soát lỗi. Toàn bộ types chuẩn đã nằm trong `src/types/index.ts`. |
 
 ---

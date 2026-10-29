@@ -1,9 +1,10 @@
-import apiClient from './apiClient';
+import { apiClient } from './apiClient';
 import {
   ApiResponse,
+  FormatRhythmDto,
   PagedResult,
   SimOwnershipDto,
-  SimOwnershipSortBy,
+  SimOwnershipQueryFilter,
   SimRegisterRequestDto,
 } from '../types';
 
@@ -26,21 +27,42 @@ export const simService = {
   },
 
   // Get user's verified SIM inventory with search and sorting
-  async getMyOwnerships(params?: {
-    search?: string;
-    sortBy?: SimOwnershipSortBy;
-    pageIndex?: number;
-    pageSize?: number;
-  }): Promise<ApiResponse<PagedResult<SimOwnershipDto>>> {
+  async getMyOwnerships(
+    params?: SimOwnershipQueryFilter & { search?: string }
+  ): Promise<ApiResponse<PagedResult<SimOwnershipDto>>> {
+    const cleanParams: Record<string, any> = {};
+    if (params) {
+      if (params.pageIndex !== undefined) cleanParams.pageIndex = params.pageIndex;
+      if (params.pageSize !== undefined) cleanParams.pageSize = params.pageSize;
+      const kw = params.keyword || params.search;
+      if (kw) cleanParams.keyword = kw.trim();
+      if (params.status) cleanParams.status = params.status;
+      if (params.simId) cleanParams.simId = params.simId;
+      if (params.sortBy !== undefined) cleanParams.sortBy = params.sortBy;
+      if (params.sortOrder !== undefined) cleanParams.sortOrder = params.sortOrder;
+      if (params.fromDate) cleanParams.fromDate = params.fromDate;
+      if (params.toDate) cleanParams.toDate = params.toDate;
+    }
     const res = await apiClient.get<ApiResponse<PagedResult<SimOwnershipDto>>>('/sims/my-ownerships', {
-      params,
+      params: cleanParams,
     });
+    return res.data;
+  },
+
+  // Get list of Format Rhythms (Sảnh tiến, Lặp đôi, Tứ quý,...)
+  async getFormatRhythms(): Promise<ApiResponse<FormatRhythmDto[]>> {
+    const res = await apiClient.get<ApiResponse<FormatRhythmDto[]>>('/format-rhythms');
     return res.data;
   },
 
   // Register new SIM for sale/auction
   async registerSim(data: SimRegisterRequestDto): Promise<ApiResponse<any>> {
-    const res = await apiClient.post<ApiResponse<any>>('/sims/register', data);
+    const res = await apiClient.post<ApiResponse<any>>('/sims/register', {
+      phoneNumber: data.phoneNumber,
+      formatRhythmId: data.formatRhythmId,
+      categoryIds: data.categoryIds,
+      phonePrefixId: data.phonePrefixId,
+    });
     return res.data;
   },
 

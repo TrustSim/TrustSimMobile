@@ -30,6 +30,21 @@ export default function AccountScreen() {
     router.replace('/login');
   };
 
+  const handleVerifySim = () => {
+    if (profile?.verificationStatus !== 'VERIFIED') {
+      Alert.alert(
+        'Yêu cầu xác minh danh tính',
+        'Để xác thực quyền sở hữu SIM, bạn cần hoàn thành xác thực CCCD (eKYC) trước.',
+        [
+          { text: 'Để sau', style: 'cancel' },
+          { text: 'Xác minh ngay', onPress: () => router.push('/kyc') },
+        ]
+      );
+      return;
+    }
+    router.push('/sims/verify');
+  };
+
   const handleLogout = () => {
     if (Platform.OS === 'web') {
       if (typeof window !== 'undefined' && window.confirm('Bạn có chắc chắn muốn đăng xuất khỏi ứng dụng TrustSim?')) {
@@ -145,7 +160,7 @@ export default function AccountScreen() {
 
           <TouchableOpacity
             style={styles.navRow}
-            onPress={() => router.push('/sims/verify')}
+            onPress={handleVerifySim}
             activeOpacity={0.7}
           >
             <View style={styles.navLeft}>

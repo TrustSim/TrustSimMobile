@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import {
+  Alert,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -25,6 +26,21 @@ export default function HomeScreen() {
     setRefreshing(true);
     await Promise.allSettled([refreshWallet(), refreshProfile()]);
     setRefreshing(false);
+  };
+
+  const handleAddSim = () => {
+    if (profile?.verificationStatus !== 'VERIFIED') {
+      Alert.alert(
+        'Yêu cầu xác minh danh tính',
+        'Để thêm và xác thực số SIM chính chủ, bạn cần hoàn thành xác thực CCCD (eKYC) trước.',
+        [
+          { text: 'Để sau', style: 'cancel' },
+          { text: 'Xác minh ngay', onPress: () => router.push('/kyc') },
+        ]
+      );
+      return;
+    }
+    router.push('/sims/verify');
   };
 
   const formatVnd = (amount?: number) => {
@@ -129,7 +145,7 @@ export default function HomeScreen() {
 
           <TouchableOpacity
             style={styles.actionItem}
-            onPress={() => router.push('/sims/verify')}
+            onPress={handleAddSim}
             activeOpacity={0.8}
           >
             <View style={[styles.actionIconCircle, { backgroundColor: 'rgba(139, 92, 246, 0.12)' }]}>

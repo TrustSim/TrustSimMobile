@@ -237,12 +237,18 @@ export default function SimHandoverScreen() {
             <Card style={styles.headerCard}>
               <View style={styles.headerRow}>
                 <View>
-                  <Text style={styles.tradeCode}>{progress.tradeCode}</Text>
-                  <Text style={styles.simText}>Mã giao dịch: {progress.tradeCode}</Text>
+                  <Text style={styles.tradeCode}>{progress.tradeTransactionCode || progress.tradeCode}</Text>
+                  <Text style={styles.simText}>Số SIM: {progress.simPhoneNumber || 'SIM'}</Text>
                 </View>
                 <Badge
-                  status={progress.tradeStatus}
-                  label="Đang bàn giao"
+                  status={progress.simTransferStatus || progress.tradeStatus || 'PENDING'}
+                  label={
+                    progress.simTransferStatus === 'SELLER_PROOF_SUBMITTED'
+                      ? 'Đã nộp biên bản'
+                      : progress.simTransferStatus === 'COMPLETED'
+                      ? 'Hoàn tất'
+                      : 'Đang bàn giao'
+                  }
                 />
               </View>
 
@@ -255,9 +261,9 @@ export default function SimHandoverScreen() {
                 </Text>
               </View>
 
-              {progress.transferDeadline && (
+              {(progress.deadline || progress.transferDeadline) && (
                 <Text style={styles.deadlineText}>
-                  ⏱️ Hạn chót hoàn tất: {new Date(progress.transferDeadline).toLocaleDateString('vi-VN')}
+                  ⏱️ Hạn chót hoàn tất: {new Date(progress.deadline || progress.transferDeadline!).toLocaleDateString('vi-VN')}
                 </Text>
               )}
             </Card>
@@ -274,7 +280,11 @@ export default function SimHandoverScreen() {
               </View>
 
               <View style={styles.stepItem}>
-                <Ionicons name="time" size={20} color={Colors.warning} />
+                <Ionicons
+                  name={progress.simTransferStatus === 'SELLER_PROOF_SUBMITTED' ? 'checkmark-circle' : 'time'}
+                  size={20}
+                  color={progress.simTransferStatus === 'SELLER_PROOF_SUBMITTED' ? Colors.success : Colors.warning}
+                />
                 <Text style={[styles.stepItemText, styles.stepActive]}>
                   2. Người bán làm thủ tục sang tên tại điểm giao dịch nhà mạng
                 </Text>
@@ -295,55 +305,78 @@ export default function SimHandoverScreen() {
               </View>
             </Card>
 
+            {/* Proofs Display if any */}
+            {progress.proofs && progress.proofs.length > 0 && (
+              <Card style={[styles.stepsCard, { marginTop: Spacing.sm }]}>
+                <Text style={styles.stepsTitle}>BIÊN BẢN / CHỨNG TỪ ĐÃ NỘP</Text>
+                {progress.proofs.map((proof, idx) => (
+                  <View key={proof.id || idx} style={{ marginTop: Spacing.xs, paddingVertical: Spacing.xs }}>
+                    <Text style={{ fontWeight: '600', color: Colors.text }}>
+                      📌 {proof.description || 'Biên bản sang tên'} ({proof.proofStatus || 'ĐÃ NỘP'})
+                    </Text>
+                    {proof.imageUrl && (
+                      <Text style={{ fontSize: 12, color: Colors.primary, marginTop: 2 }}>
+                        🔗 {proof.imageUrl}
+                      </Text>
+                    )}
+                  </View>
+                ))}
+              </Card>
+            )}
+
             {/* Seller Action Section */}
-            <Card style={styles.sellerCard}>
-              <Text style={styles.roleHeader}>DÀNH CHO NGƯỜI BÁN</Text>
-              <Text style={styles.roleDesc}>
-                Sau khi làm xong thủ tục sang tên tại điểm giao dịch nhà mạng, vui lòng nộp ảnh chứng từ xác nhận:
-              </Text>
-
-              <View style={styles.uploadBox}>
-                <Ionicons name="camera" size={32} color={Colors.primary} />
-                <Text style={styles.uploadText}>
-                  📷 [Đã đính kèm ảnh biên bản sang tên]
+            {(progress.canSubmitProof ?? true) && (
+              <Card style={styles.sellerCard}>
+                <Text style={styles.roleHeader}>DÀNH CHO NGƯỜI BÁN</Text>
+                <Text style={styles.roleDesc}>
+                  Sau khi làm xong thủ tục sang tên tại điểm giao dịch nhà mạng, vui lòng nộp ảnh chứng từ xác nhận:
                 </Text>
-              </View>
 
-              <TextInput
-                style={styles.noteInput}
-                value={proofNote}
-                onChangeText={setProofNote}
-                placeholder="Ghi chú thêm..."
-              />
+                <View style={styles.uploadBox}>
+                  <Ionicons name="camera" size={32} color={Colors.primary} />
+                  <Text style={styles.uploadText}>
+                    📷 [Đã đính kèm ảnh biên bản sang tên]
+                  </Text>
+                </View>
 
-              <Button
-                title="NỘP BIÊN BẢN SANG TÊN"
-                variant="outline"
-                size="md"
-                loading={submittingProof}
-                onPress={handleSellerSubmitProof}
-                style={{ marginTop: Spacing.sm }}
-              />
-            </Card>
+                <TextInput
+                  style={styles.noteInput}
+                  value={proofNote}
+                  onChangeText={setProofNote}
+                  placeholder="Ghi chú thêm..."
+                />
+
+                <Button
+                  title="NỘP BIÊN BẢN SANG TÊN"
+                  variant="outline"
+                  size="md"
+                  loading={submittingProof}
+                  onPress={handleSellerSubmitProof}
+                  style={{ marginTop: Spacing.sm }}
+                />
+              </Card>
+            )}
 
             {/* Buyer Action Section */}
-            <Card style={styles.buyerCard}>
-              <Text style={[styles.roleHeader, { color: Colors.primary }]}>
-                DÀNH CHO NGƯỜI MUA
-              </Text>
-              <Text style={styles.roleDesc}>
-                Khi bạn đã nhận SIM, lắp vào máy và thấy sóng nhà mạng hoạt động bình thường, hãy bấm xác nhận bên dưới:
-              </Text>
+            {(progress.canConfirmTransfer ?? progress.canConfirm ?? true) && (
+              <Card style={styles.buyerCard}>
+                <Text style={[styles.roleHeader, { color: Colors.primary }]}>
+                  DÀNH CHO NGƯỜI MUA
+                </Text>
+                <Text style={styles.roleDesc}>
+                  Khi bạn đã nhận SIM, lắp vào máy và thấy sóng nhà mạng hoạt động bình thường, hãy bấm xác nhận bên dưới:
+                </Text>
 
-              <Button
-                title="✅ XÁC NHẬN ĐÃ NHẬN SIM & HOÀN TẤT"
-                variant="success"
-                size="lg"
-                loading={confirming}
-                onPress={handleBuyerConfirmReceipt}
-                style={styles.confirmBtn}
-              />
-            </Card>
+                <Button
+                  title="✅ XÁC NHẬN ĐÃ NHẬN SIM & HOÀN TẤT"
+                  variant="success"
+                  size="lg"
+                  loading={confirming}
+                  onPress={handleBuyerConfirmReceipt}
+                  style={styles.confirmBtn}
+                />
+              </Card>
+            )}
           </View>
         )}
       </ScrollView>

@@ -194,8 +194,8 @@ export default function ContractPreviewScreen() {
         <Card style={styles.summaryCard}>
           <View style={styles.summaryTopRow}>
             <View>
-              <Text style={styles.tradeCode}>{contract?.tradeCode || 'TRD-20261021-001'}</Text>
-              <Text style={styles.simNumber}>0909.999.999 (Mobifone)</Text>
+              <Text style={styles.tradeCode}>{contract?.tradeTransactionCode || contract?.tradeCode || 'TRD-20261021-001'}</Text>
+              <Text style={styles.simNumber}>{contract?.simPhoneNumber || contract?.simNumber || '0909.999.999'}</Text>
             </View>
             <Badge
               status={contract?.contractStatus || 'PENDING_BUYER_SIGNATURE'}
@@ -213,7 +213,7 @@ export default function ContractPreviewScreen() {
             {/* Seller */}
             <View style={styles.partyBox}>
               <Text style={styles.partyRole}>BÊN BÁN (BÊN A)</Text>
-              <Text style={styles.partyName}>{contract?.sellerFullName}</Text>
+              <Text style={styles.partyName}>{contract?.sellerFullName || contract?.sellerName || 'Bên bán'}</Text>
               <View style={styles.signedTag}>
                 <Ionicons name="checkmark-circle" size={14} color={Colors.success} />
                 <Text style={styles.signedTagText}>Đã ký</Text>
@@ -223,7 +223,7 @@ export default function ContractPreviewScreen() {
             {/* Buyer */}
             <View style={styles.partyBox}>
               <Text style={styles.partyRole}>BÊN MUA (BÊN B)</Text>
-              <Text style={styles.partyName}>{contract?.buyerFullName}</Text>
+              <Text style={styles.partyName}>{contract?.buyerFullName || contract?.buyerName || 'Bên mua'}</Text>
               {contract?.buyerSigned ? (
                 <View style={styles.signedTag}>
                   <Ionicons name="checkmark-circle" size={14} color={Colors.success} />
@@ -312,11 +312,14 @@ export default function ContractPreviewScreen() {
               variant="outline"
               size="md"
               icon={<Ionicons name="download-outline" size={18} color={Colors.primary} />}
-              onPress={() =>
-                contract.pdfDocumentUrl
-                  ? Linking.openURL(contract.pdfDocumentUrl)
-                  : Alert.alert('Tải hợp đồng', 'File PDF đang được tải về...')
-              }
+              onPress={() => {
+                const pdfUrl = contract.documentPdfUrl || contract.pdfDocumentUrl;
+                if (pdfUrl) {
+                  Linking.openURL(pdfUrl);
+                } else {
+                  Alert.alert('Tải hợp đồng', 'File PDF đang được tải về...');
+                }
+              }}
               style={{ marginBottom: Spacing.sm }}
             />
             <Button
@@ -399,8 +402,8 @@ export default function ContractPreviewScreen() {
       {/* SCR-19.2: Biometric Prompt Modal */}
       <BiometricPromptModal
         visible={showBiometrics}
-        tradeCode={contract?.tradeCode || '—'}
-        simNumber={contract?.simNumber || 'SIM'}
+        tradeCode={contract?.tradeTransactionCode || contract?.tradeCode || '—'}
+        simNumber={contract?.simPhoneNumber || contract?.simNumber || 'SIM'}
         onSuccess={() => {
           setShowBiometrics(false);
           handleStartSign();
@@ -438,7 +441,9 @@ export default function ContractPreviewScreen() {
                 <View style={styles.integrityRow}>
                   <Text style={styles.intLabel}>Thời gian chứng thực:</Text>
                   <Text style={styles.intVal}>
-                    {new Date(integrityResult.tsaTimestamp).toLocaleString('vi-VN')}
+                    {integrityResult.tsaTimestamp
+                      ? new Date(integrityResult.tsaTimestamp).toLocaleString('vi-VN')
+                      : '—'}
                   </Text>
                 </View>
 

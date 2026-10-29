@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
+import * as ScreenOrientation from 'expo-screen-orientation';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Colors } from '../constants/theme';
 import { AuthProvider } from '../context/AuthContext';
@@ -10,6 +11,9 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function RootLayout() {
   useEffect(() => {
+    // Default lock to portrait orientation on app start
+    ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
+
     // Hide splash screen after initialization
     const timer = setTimeout(() => {
       SplashScreen.hideAsync().catch(() => {});
@@ -22,7 +26,6 @@ export default function RootLayout() {
       <AuthProvider>
         <StatusBar style="dark" />
         <Stack
-          initialRouteName="index"
           screenOptions={{
             headerShown: false,
             contentStyle: { backgroundColor: Colors.background },

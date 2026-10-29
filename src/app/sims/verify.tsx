@@ -19,10 +19,13 @@ import { BottomNavBar } from '../../components/BottomNavBar';
 import { Input } from '../../components/Input';
 import { TelcoRadarModal } from '../../components/TelcoRadarModal';
 import { BorderRadius, Colors, Spacing } from '../../constants/theme';
+import { useAuth } from '../../context/AuthContext';
+import { extractErrorMessage } from '../../services/apiClient';
 import { simService } from '../../services/simService';
 
 export default function SimVerifyScreen() {
   const router = useRouter();
+  const { profile } = useAuth();
 
   // Flow step: 1 = Enter Phone Number, 2 = Enter SMS OTP
   const [step, setStep] = useState<1 | 2>(1);
@@ -51,6 +54,18 @@ export default function SimVerifyScreen() {
   const carrier = getCarrierInfo(phoneNumber);
 
   const handleSendOtp = async () => {
+    if (profile?.verificationStatus !== 'VERIFIED') {
+      Alert.alert(
+        'Yêu cầu xác minh danh tính',
+        'Hồ sơ cá nhân chưa được xác thực danh tính (KYC). Vui lòng hoàn tất xác thực KYC trước khi thực hiện xác thực quyền sở hữu SIM.',
+        [
+          { text: 'Để sau', style: 'cancel' },
+          { text: 'Xác minh KYC ngay', onPress: () => router.push('/kyc') },
+        ]
+      );
+      return;
+    }
+
     const cleanPhone = phoneNumber.replace(/[^0-9]/g, '');
     if (cleanPhone.length < 10) {
       setError('Vui lòng nhập số điện thoại hợp lệ 10 số.');
@@ -66,8 +81,19 @@ export default function SimVerifyScreen() {
       } else {
         setError(res.message || 'Không thể gửi mã OTP tới số này.');
       }
-    } catch {
-      setError('Không thể gửi mã OTP. Vui lòng kiểm tra lại kết nối mạng.');
+    } catch (err: any) {
+      const msg = extractErrorMessage(err, 'Không thể gửi mã OTP tới số này.');
+      setError(msg);
+      if (msg.includes('KYC') || msg.includes('xác thực danh tính')) {
+        Alert.alert(
+          'Chưa xác thực KYC',
+          msg,
+          [
+            { text: 'Để sau', style: 'cancel' },
+            { text: 'Xác minh ngay', onPress: () => router.push('/kyc') },
+          ]
+        );
+      }
     } finally {
       setLoading(false);
     }

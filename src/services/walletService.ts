@@ -5,8 +5,10 @@ import {
   DepositResponseDto,
   PagedResult,
   StatementItemDto,
+  UnifiedStatementQueryFilter,
   WalletDto,
   WalletTransactionDto,
+  WalletTransactionQueryFilter,
   WithdrawRequestDto,
 } from '../types';
 
@@ -18,14 +20,9 @@ export const walletService = {
   },
 
   // Get deposit/withdraw transaction history
-  async getTransactions(params?: {
-    type?: string;
-    status?: string;
-    fromDate?: string;
-    toDate?: string;
-    pageIndex?: number;
-    pageSize?: number;
-  }): Promise<ApiResponse<PagedResult<WalletTransactionDto>>> {
+  async getTransactions(
+    params?: WalletTransactionQueryFilter
+  ): Promise<ApiResponse<PagedResult<WalletTransactionDto>>> {
     const res = await apiClient.get<ApiResponse<PagedResult<WalletTransactionDto>>>('/wallets/transactions', {
       params,
     });
@@ -39,16 +36,29 @@ export const walletService = {
   },
 
   // Get unified financial statement (topup, withdraw, escrow, deposits)
-  async getStatement(params?: {
-    type?: string;
-    search?: string;
-    fromDate?: string;
-    toDate?: string;
-    pageIndex?: number;
-    pageSize?: number;
-  }): Promise<ApiResponse<PagedResult<StatementItemDto>>> {
+  async getStatement(
+    params?: UnifiedStatementQueryFilter & { search?: string; type?: string }
+  ): Promise<ApiResponse<PagedResult<StatementItemDto>>> {
+    const cleanParams: Record<string, any> = {};
+    if (params) {
+      if (params.pageIndex !== undefined) cleanParams.pageIndex = params.pageIndex;
+      if (params.pageSize !== undefined) cleanParams.pageSize = params.pageSize;
+      const kw = params.keyword || params.search;
+      if (kw) cleanParams.keyword = kw.trim();
+      if (params.sourceType) cleanParams.sourceType = params.sourceType;
+      if (params.direction) cleanParams.direction = params.direction;
+      if (params.status) cleanParams.status = params.status;
+      const txType = params.transactionType || params.type;
+      if (txType) cleanParams.transactionType = txType;
+      if (params.minAmount !== undefined) cleanParams.minAmount = params.minAmount;
+      if (params.maxAmount !== undefined) cleanParams.maxAmount = params.maxAmount;
+      if (params.fromDate) cleanParams.fromDate = params.fromDate;
+      if (params.toDate) cleanParams.toDate = params.toDate;
+      if (params.sortBy !== undefined) cleanParams.sortBy = params.sortBy;
+      if (params.sortOrder !== undefined) cleanParams.sortOrder = params.sortOrder;
+    }
     const res = await apiClient.get<ApiResponse<PagedResult<StatementItemDto>>>('/wallets/statement', {
-      params,
+      params: cleanParams,
     });
     return res.data;
   },

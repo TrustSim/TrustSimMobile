@@ -30,7 +30,7 @@ export default function VerifyEmailScreen() {
   const [error, setError] = useState<string | null>(null);
   const [cooldown, setCooldown] = useState(60);
 
-  const inputRef = useRef<TextInput>(null);
+  const inputRef = useRef<any>(null);
 
   // 60s cooldown timer
   useEffect(() => {

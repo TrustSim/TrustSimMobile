@@ -3,12 +3,13 @@
     "name": "trustsim-mobile",
     "slug": "trustsim-mobile",
     "version": "1.0.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/images/icon.png",
     "scheme": "trustsimmobile",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/expo.icon",
+      "requireFullScreen": true
     },
     "android": {
       "adaptiveIcon": {
@@ -31,6 +32,12 @@
           "backgroundColor": "#1E3A8A",
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
+        }
+      ],
+      [
+        "expo-screen-orientation",
+        {
+          "initialOrientation": "PORTRAIT"
         }
       ],
       "expo-secure-store",

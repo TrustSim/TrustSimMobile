@@ -47,6 +47,24 @@ export const Badge: React.FC<BadgeProps> = ({ status, label, style }) => {
           color: '#92400E',
           text: label || 'Tạm giữ',
         };
+      case 'CREDIT':
+        return {
+          bg: Colors.successLight,
+          color: '#065F46',
+          text: label || 'Tiền vào (+)',
+        };
+      case 'DEBIT':
+        return {
+          bg: Colors.dangerLight,
+          color: '#991B1B',
+          text: label || 'Tiền ra (-)',
+        };
+      case 'LOCK':
+        return {
+          bg: Colors.warningLight,
+          color: '#9A3412',
+          text: label || 'Tạm khóa',
+        };
       case 'UNVERIFIED':
       default:
         return {
