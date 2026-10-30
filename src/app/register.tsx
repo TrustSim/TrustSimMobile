@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import {
+  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -9,7 +10,7 @@ import {
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
@@ -66,7 +67,6 @@ export default function RegisterScreen() {
         password,
       });
 
-      // Navigate to Email OTP screen with email prefilled
       router.push({
         pathname: '/verify-email',
         params: { email: email.trim() },
@@ -86,7 +86,16 @@ export default function RegisterScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.keyboardView}
       >
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          {/* Logo Brand Header */}
+          <View style={styles.brandHeader}>
+            <Image
+              source={require('../../assets/images/logo/TrustSim-Logo.png')}
+              style={styles.brandLogo}
+              resizeMode="contain"
+            />
+          </View>
+
           <Card style={styles.card}>
             <View style={styles.cardHeader}>
               <View style={styles.badgeStep}>
@@ -94,13 +103,13 @@ export default function RegisterScreen() {
               </View>
               <Text style={styles.formTitle}>Tạo Tài Khoản Mới</Text>
               <Text style={styles.formSubtitle}>
-                Hệ thống sẽ gửi mã xác thực OTP 6 số đến email của bạn ở bước kế tiếp
+                Hệ thống sẽ gửi mã xác thực 6 số đến email của bạn ở bước kế tiếp
               </Text>
             </View>
 
             {error && (
               <View style={styles.errorAlert}>
-                <Ionicons name="alert-circle" size={18} color={Colors.danger} />
+                <MaterialCommunityIcons name="alert-circle" size={18} color={Colors.danger} />
                 <Text style={styles.errorAlertText}>{error}</Text>
               </View>
             )}
@@ -112,7 +121,7 @@ export default function RegisterScreen() {
               onChangeText={setUserName}
               autoCapitalize="none"
               hint="3-50 ký tự, không dấu cách"
-              leftIcon={<Ionicons name="person-outline" size={18} color={Colors.textSecondary} />}
+              leftIcon={<MaterialCommunityIcons name="account-outline" size={18} color={Colors.textSecondary} />}
             />
 
             <Input
@@ -120,19 +129,20 @@ export default function RegisterScreen() {
               placeholder="vidu@email.com"
               value={email}
               onChangeText={setEmail}
-              autoCapitalize="none"
               keyboardType="email-address"
-              hint="Dùng để nhận mã xác nhận và thông báo giao dịch"
-              leftIcon={<Ionicons name="mail-outline" size={18} color={Colors.textSecondary} />}
+              autoCapitalize="none"
+              hint="Dùng để nhận mã OTP và thông báo giao dịch"
+              leftIcon={<MaterialCommunityIcons name="email-outline" size={18} color={Colors.textSecondary} />}
             />
 
             <Input
               label="Mật khẩu"
-              placeholder="Tối thiểu 6 ký tự..."
+              placeholder="Nhập mật khẩu..."
               value={password}
               onChangeText={setPassword}
               isPassword
-              leftIcon={<Ionicons name="lock-closed-outline" size={18} color={Colors.textSecondary} />}
+              hint="Tối thiểu 6 ký tự"
+              leftIcon={<MaterialCommunityIcons name="lock-outline" size={18} color={Colors.textSecondary} />}
             />
 
             <Input
@@ -141,7 +151,7 @@ export default function RegisterScreen() {
               value={confirmPassword}
               onChangeText={setConfirmPassword}
               isPassword
-              leftIcon={<Ionicons name="shield-checkmark-outline" size={18} color={Colors.textSecondary} />}
+              leftIcon={<MaterialCommunityIcons name="lock-check-outline" size={18} color={Colors.textSecondary} />}
             />
 
             <Button
@@ -150,16 +160,16 @@ export default function RegisterScreen() {
               size="lg"
               loading={loading}
               onPress={handleRegister}
-              style={styles.submitBtn}
+              style={styles.registerBtn}
             />
-          </Card>
 
-          <View style={styles.footer}>
-            <Text style={styles.footerText}>Đã có tài khoản?</Text>
-            <TouchableOpacity onPress={() => router.back()}>
-              <Text style={styles.loginLink}>Đăng Nhập Ngay</Text>
-            </TouchableOpacity>
-          </View>
+            <View style={styles.loginPrompt}>
+              <Text style={styles.loginPromptText}>Đã có tài khoản? </Text>
+              <TouchableOpacity onPress={() => router.replace('/login')}>
+                <Text style={styles.loginLinkText}>Đăng nhập</Text>
+              </TouchableOpacity>
+            </View>
+          </Card>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -175,72 +185,78 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    padding: Spacing.lg,
+    padding: Spacing.xl,
+    paddingBottom: Spacing.xxxl,
+  },
+  brandHeader: {
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+  },
+  brandLogo: {
+    width: 200,
+    height: 54,
   },
   card: {
     padding: Spacing.xl,
+    borderRadius: BorderRadius.lg,
   },
   cardHeader: {
-    alignItems: 'center',
     marginBottom: Spacing.lg,
   },
   badgeStep: {
-    backgroundColor: Colors.accentLight,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
-    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.primaryLight + '15',
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs / 2,
+    borderRadius: BorderRadius.sm,
+    alignSelf: 'flex-start',
     marginBottom: Spacing.xs,
   },
   badgeStepText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#92400E',
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.blue,
   },
   formTitle: {
     fontSize: 20,
     fontWeight: '800',
-    color: Colors.text,
-    marginTop: 2,
+    color: Colors.navy,
   },
   formSubtitle: {
     fontSize: 13,
     color: Colors.textSecondary,
-    textAlign: 'center',
-    marginTop: 4,
+    marginTop: Spacing.xs,
     lineHeight: 18,
   },
   errorAlert: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.dangerLight,
-    padding: Spacing.sm + 2,
-    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.sm,
     marginBottom: Spacing.md,
+    gap: Spacing.xs,
   },
   errorAlertText: {
-    flex: 1,
-    color: Colors.danger,
     fontSize: 13,
-    marginLeft: Spacing.xs,
-    fontWeight: '500',
+    color: Colors.danger,
+    flex: 1,
   },
-  submitBtn: {
-    marginTop: Spacing.md,
+  registerBtn: {
+    marginTop: Spacing.sm,
   },
-  footer: {
+  loginPrompt: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: Spacing.xl,
+    marginTop: Spacing.lg,
   },
-  footerText: {
+  loginPromptText: {
     fontSize: 14,
     color: Colors.textSecondary,
   },
-  loginLink: {
+  loginLinkText: {
     fontSize: 14,
-    fontWeight: '800',
-    color: Colors.primary,
-    marginLeft: 6,
+    fontWeight: '700',
+    color: Colors.blue,
   },
 });

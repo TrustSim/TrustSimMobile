@@ -8,11 +8,10 @@ import {
   View,
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Badge } from '../../components/Badge';
-import { Card } from '../../components/Card';
-import { BorderRadius, Colors, Spacing } from '../../constants/theme';
+import { BorderRadius, Colors, Shadows, Spacing } from '../../constants/theme';
+import { VerificationStatusBadge } from '../../components/trust/VerificationStatusBadge';
 import { useAuth } from '../../context/AuthContext';
 import { walletService } from '../../services/walletService';
 import { WalletTransactionDto } from '../../types';
@@ -20,13 +19,12 @@ import { WalletTransactionDto } from '../../types';
 export default function WalletScreen() {
   const router = useRouter();
   const { wallet, refreshWallet } = useAuth();
-
   const [refreshing, setRefreshing] = useState(false);
   const [recentTransactions, setRecentTransactions] = useState<WalletTransactionDto[]>([]);
 
   const fetchRecentHistory = useCallback(async () => {
     try {
-      const res = await walletService.getTransactions({ pageIndex: 1, pageSize: 5 });
+      const res = await walletService.getTransactions({ pageIndex: 1, pageSize: 6 });
       if (res.success && res.data?.items) {
         setRecentTransactions(res.data.items);
       } else {
@@ -50,152 +48,187 @@ export default function WalletScreen() {
     }, [refreshWallet, fetchRecentHistory])
   );
 
-  const formatVnd = (amount?: number) => {
-    if (typeof amount !== 'number') return '0 đ';
-    return amount.toLocaleString('vi-VN') + ' đ';
+  const availableBal = wallet?.availableBalance ?? 0;
+  const lockedBal = wallet?.lockedBalance ?? 0;
+  const totalBal = wallet?.totalBalance ?? (availableBal + lockedBal);
+
+  const getStatusBadge = (status?: string) => {
+    switch (status) {
+      case 'COMPLETED':
+      case 'SUCCESS':
+        return <VerificationStatusBadge status="verified" label="Thành công" size="sm" />;
+      case 'PENDING':
+        return <VerificationStatusBadge status="pending" label="Đang xử lý" size="sm" />;
+      case 'FAILED':
+      case 'CANCELLED':
+        return <VerificationStatusBadge status="rejected" label="Thất bại" size="sm" />;
+      default:
+        return <VerificationStatusBadge status="not_submitted" label={status || 'Khác'} size="sm" />;
+    }
   };
 
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
       <ScrollView
         contentContainerStyle={styles.scrollContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.blue} />}
+        showsVerticalScrollIndicator={false}
       >
-        {/* Page Top Title */}
+        {/* Top Header */}
         <View style={styles.topBar}>
-          <Text style={styles.pageTitle}>Ví Tiền Của Tôi</Text>
-          <Badge status={wallet?.walletStatus || 'ACTIVE'} label={wallet?.walletStatus || 'ACTIVE'} />
+          <Text style={styles.pageTitle}>Ví Tiền</Text>
+          <View style={styles.statusPill}>
+            <View style={styles.activeDot} />
+            <Text style={styles.statusText}>{wallet?.walletStatus || 'HOẠT ĐỘNG'}</Text>
+          </View>
         </View>
 
-        {/* Aesthetic Master Balance Card */}
-        <Card style={styles.masterCard}>
-          <View style={styles.cardGlow} />
-
-          {/* Top Card Row */}
-          <View style={styles.cardHeaderRow}>
+        {/* Thẻ số dư ví */}
+        <View style={styles.masterCard}>
+          <View style={styles.masterHeader}>
             <View>
               <Text style={styles.availableLabel}>SỐ DƯ KHẢ DỤNG</Text>
-              <Text style={styles.availableAmount}>{formatVnd(wallet?.availableBalance)}</Text>
-            </View>
-            <View style={styles.cardChipIcon}>
-              <Ionicons name="card" size={28} color={Colors.accent} />
-            </View>
-          </View>
-
-          {/* Locked / Total Row */}
-          <View style={styles.subBalanceContainer}>
-            <View style={styles.subBalanceCol}>
-              <Text style={styles.subBalLabel}>Tạm giữ giao dịch:</Text>
-              <Text style={[styles.subBalValue, { color: Colors.warning }]}>
-                {formatVnd(wallet?.lockedBalance)}
+              <Text style={styles.availableAmount}>
+                {availableBal.toLocaleString('vi-VN')}{' '}
+                <Text style={styles.currencySymbol}>₫</Text>
               </Text>
             </View>
-
-            <View style={styles.subDivider} />
-
-            <View style={styles.subBalanceCol}>
-              <Text style={styles.subBalLabel}>Tổng tài sản:</Text>
-              <Text style={styles.subBalValue}>{formatVnd(wallet?.totalBalance)}</Text>
+            <View style={styles.shieldIconBox}>
+              <MaterialCommunityIcons name="shield-lock" size={22} color={Colors.navy} />
             </View>
           </View>
 
-          <Text style={styles.cardNote}>
-            * Số tiền tạm giữ gồm tiền đặt cọc đấu giá và tiền bảo đảm đang giao dịch.
-          </Text>
-        </Card>
+          {/* Phân tách: Tiền ký quỹ & Tổng số dư */}
+          <View style={styles.breakdownBox}>
+            <View style={styles.breakdownCol}>
+              <Text style={styles.breakdownLabel}>Tiền ký quỹ an toàn</Text>
+              <Text style={[styles.breakdownAmount, { color: Colors.warning }]}>
+                {lockedBal.toLocaleString('vi-VN')} ₫
+              </Text>
+              <Text style={styles.breakdownNote}>Bảo đảm giao dịch chuyển nhượng</Text>
+            </View>
+            <View style={styles.breakdownDivider} />
+            <View style={styles.breakdownCol}>
+              <Text style={styles.breakdownLabel}>Tổng số dư ví</Text>
+              <Text style={styles.breakdownAmount}>
+                {totalBal.toLocaleString('vi-VN')} ₫
+              </Text>
+              <Text style={styles.breakdownNote}>Khả dụng + Ký quỹ</Text>
+            </View>
+          </View>
+        </View>
 
-        {/* Action Buttons Row */}
+        {/* Nút hành động */}
         <View style={styles.actionsRow}>
           <TouchableOpacity
-            style={[styles.actionBtnBox, { backgroundColor: Colors.primary }]}
+            style={[styles.actionBtn, styles.actionBtnPrimary]}
             onPress={() => router.push('/deposit')}
             activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Nạp tiền vào ví"
           >
-            <Ionicons name="add-circle" size={22} color={Colors.textInverse} />
-            <Text style={styles.actionBtnTextInverse}>Nạp Tiền</Text>
+            <MaterialCommunityIcons name="plus-circle" size={20} color="#fff" />
+            <Text style={styles.actionBtnPrimaryText}>Nạp tiền</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.actionBtnBox, { backgroundColor: Colors.surface, borderWidth: 1.5, borderColor: Colors.border }]}
+            style={[styles.actionBtn, styles.actionBtnSecondary]}
             onPress={() => router.push('/withdraw')}
             activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Rút tiền về ngân hàng"
           >
-            <Ionicons name="arrow-up-circle" size={22} color={Colors.primary} />
-            <Text style={styles.actionBtnText}>Rút Tiền</Text>
+            <MaterialCommunityIcons name="arrow-up-circle-outline" size={20} color={Colors.navy} />
+            <Text style={styles.actionBtnSecondaryText}>Rút tiền</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.actionBtnBox, { backgroundColor: Colors.surface, borderWidth: 1.5, borderColor: Colors.border }]}
+            style={[styles.actionBtn, styles.actionBtnSecondary]}
             onPress={() => router.push('/transactions')}
             activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Xem lịch sử giao dịch"
           >
-            <Ionicons name="receipt" size={22} color={Colors.accent} />
-            <Text style={styles.actionBtnText}>Lịch Sử</Text>
+            <MaterialCommunityIcons name="file-document-outline" size={20} color={Colors.navy} />
+            <Text style={styles.actionBtnSecondaryText}>Lịch sử</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Security Notice */}
-        <Card style={styles.securityCard}>
-          <View style={styles.securityHeader}>
-            <Ionicons name="lock-closed" size={18} color={Colors.primary} />
-            <Text style={styles.securityTitle}>Giao Dịch An Toàn & Bảo Mật</Text>
+        {/* Giải thích cơ chế bảo vệ ký quỹ */}
+        <View style={styles.infoCard}>
+          <MaterialCommunityIcons name="lock-check-outline" size={20} color={Colors.blue} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.infoTitle}>Cơ chế bảo vệ ký quỹ an toàn</Text>
+            <Text style={styles.infoDesc}>
+              Số tiền cọc khi giao dịch được tạm giữ bảo đảm. Khi bên bán hoàn tất sang tên chính chủ và bên mua xác nhận đã nhận SIM, tiền mới được giải ngân.
+            </Text>
           </View>
-          <Text style={styles.securityDesc}>
-            Mọi giao dịch nạp rút và thanh toán đều được mã hóa bảo mật, đảm bảo an toàn tuyệt đối cho tài khoản của bạn.
-          </Text>
-        </Card>
+        </View>
 
-        {/* Recent Transactions Section */}
+        {/* Giao dịch gần đây */}
         <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionTitle}>Biến Động Gần Đây</Text>
+          <Text style={styles.sectionTitle}>Giao Dịch Gần Đây</Text>
           <TouchableOpacity onPress={() => router.push('/transactions')}>
             <Text style={styles.seeAllBtn}>Xem tất cả</Text>
           </TouchableOpacity>
         </View>
 
-        {recentTransactions.length > 0 ? (
+        {recentTransactions.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <MaterialCommunityIcons name="receipt-outline" size={36} color={Colors.textMuted} />
+            <Text style={styles.emptyText}>Chưa có biến động số dư</Text>
+          </View>
+        ) : (
           recentTransactions.map((tx) => {
-            const isTopUp = (tx.walletTransactionType || tx.type) === 'TOP_UP';
-            const txStatus = tx.transactionStatus || tx.status || 'PENDING';
+            const isTopUp = tx.walletTransactionType === 'TOP_UP' || tx.type === 'TOP_UP';
+            const txDate = tx.createdAt
+              ? new Date(tx.createdAt).toLocaleDateString('vi-VN', {
+                  day: '2-digit',
+                  month: '2-digit',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })
+              : '';
+
             return (
-              <Card key={tx.id} style={styles.txItemCard}>
-                <View style={styles.txIconBox}>
-                  <Ionicons
-                    name={isTopUp ? 'arrow-down' : 'arrow-up'}
-                    size={20}
-                    color={isTopUp ? Colors.success : Colors.danger}
+              <View key={tx.id || tx.transactionCode} style={styles.txCard}>
+                <View
+                  style={[
+                    styles.txIconBox,
+                    { backgroundColor: isTopUp ? Colors.successLight : Colors.surfaceAlt },
+                  ]}
+                >
+                  <MaterialCommunityIcons
+                    name={isTopUp ? 'arrow-down-left' : 'arrow-up-right'}
+                    size={22}
+                    color={isTopUp ? Colors.success : Colors.navy}
                   />
                 </View>
 
-                <View style={styles.txContentBox}>
+                <View style={styles.txContent}>
                   <Text style={styles.txTitle}>
-                    {isTopUp ? 'Nạp tiền vào ví' : 'Rút tiền ngân hàng'}
+                    {isTopUp ? 'Nạp tiền vào ví' : 'Rút tiền về ngân hàng'}
                   </Text>
-                  <Text style={styles.txCode}>{tx.transactionCode}</Text>
-                  <Text style={styles.txDate}>
-                    {new Date(tx.createdAt).toLocaleString('vi-VN')}
-                  </Text>
+                  <Text style={styles.txCode}>#{tx.transactionCode}</Text>
+                  <Text style={styles.txDate}>{txDate}</Text>
                 </View>
 
                 <View style={styles.txAmountBox}>
                   <Text
                     style={[
                       styles.txAmount,
-                      { color: isTopUp ? Colors.success : Colors.text },
+                      { color: isTopUp ? Colors.success : Colors.navy },
                     ]}
                   >
-                    {isTopUp ? '+' : '-'} {formatVnd(tx.amount)}
+                    {isTopUp ? '+' : '-'}{Math.abs(tx.amount).toLocaleString('vi-VN')} ₫
                   </Text>
-                  <Badge status={txStatus} style={{ marginTop: 2 }} />
+                  <View style={{ marginTop: 4 }}>
+                    {getStatusBadge(tx.transactionStatus || tx.status)}
+                  </View>
                 </View>
-              </Card>
+              </View>
             );
           })
-        ) : (
-          <Card style={styles.emptyCard}>
-            <Ionicons name="receipt-outline" size={36} color={Colors.textMuted} />
-            <Text style={styles.emptyText}>Chưa có biến động số dư nào</Text>
-          </Card>
         )}
       </ScrollView>
     </SafeAreaView>
@@ -209,6 +242,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: Spacing.lg,
+    paddingBottom: Spacing.xxxl,
   },
   topBar: {
     flexDirection: 'row',
@@ -219,129 +253,155 @@ const styles = StyleSheet.create({
   pageTitle: {
     fontSize: 22,
     fontWeight: '800',
-    color: Colors.text,
+    color: Colors.navy,
+  },
+  statusPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.full,
+  },
+  activeDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: Colors.success,
+  },
+  statusText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.navy,
   },
   masterCard: {
-    backgroundColor: Colors.primary,
-    borderRadius: BorderRadius.xl,
-    padding: Spacing.xl,
-    overflow: 'hidden',
-    position: 'relative',
-    marginBottom: Spacing.lg,
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.lg,
+    marginBottom: Spacing.md,
+    ...Shadows.card,
   },
-  cardGlow: {
-    position: 'absolute',
-    top: -40,
-    right: -40,
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    backgroundColor: 'rgba(245, 158, 11, 0.25)',
-  },
-  cardHeaderRow: {
+  masterHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
+    marginBottom: Spacing.md,
   },
   availableLabel: {
     fontSize: 11,
     fontWeight: '700',
-    color: 'rgba(255, 255, 255, 0.75)',
+    color: Colors.textSecondary,
     letterSpacing: 0.5,
   },
   availableAmount: {
-    fontSize: 28,
-    fontWeight: '900',
-    color: '#34D399', // Emerald accent
-    marginTop: 4,
+    fontSize: 30,
+    fontWeight: '800',
+    color: Colors.navy,
+    fontVariant: ['tabular-nums'],
+    marginTop: 2,
   },
-  cardChipIcon: {
-    width: 44,
-    height: 44,
+  currencySymbol: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+  },
+  shieldIconBox: {
+    width: 40,
+    height: 40,
     borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: Colors.surfaceAlt,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  subBalanceContainer: {
+  breakdownBox: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: Colors.surfaceAlt,
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
-    marginTop: Spacing.lg,
   },
-  subBalanceCol: {
+  breakdownCol: {
     flex: 1,
   },
-  subDivider: {
+  breakdownDivider: {
     width: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    backgroundColor: Colors.border,
     marginHorizontal: Spacing.sm,
   },
-  subBalLabel: {
+  breakdownLabel: {
     fontSize: 11,
-    color: 'rgba(255, 255, 255, 0.75)',
+    color: Colors.textSecondary,
   },
-  subBalValue: {
+  breakdownAmount: {
     fontSize: 15,
-    fontWeight: '800',
-    color: Colors.textInverse,
+    fontWeight: '700',
+    color: Colors.navy,
+    fontVariant: ['tabular-nums'],
     marginTop: 2,
   },
-  cardNote: {
-    fontSize: 11,
-    color: 'rgba(255, 255, 255, 0.65)',
-    marginTop: Spacing.sm,
-    fontStyle: 'italic',
+  breakdownNote: {
+    fontSize: 10,
+    color: Colors.textMuted,
+    marginTop: 2,
   },
   actionsRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    gap: Spacing.sm,
     marginBottom: Spacing.lg,
-    gap: Spacing.xs,
   },
-  actionBtnBox: {
+  actionBtn: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: Spacing.md,
+    gap: 6,
+    minHeight: 48,
     borderRadius: BorderRadius.md,
   },
-  actionBtnTextInverse: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: Colors.textInverse,
-    marginLeft: 6,
+  actionBtnPrimary: {
+    backgroundColor: Colors.blue,
   },
-  actionBtnText: {
+  actionBtnPrimaryText: {
     fontSize: 14,
     fontWeight: '700',
-    color: Colors.text,
-    marginLeft: 6,
+    color: '#fff',
   },
-  securityCard: {
-    backgroundColor: 'rgba(30, 58, 138, 0.05)',
-    borderColor: 'rgba(30, 58, 138, 0.15)',
+  actionBtnSecondary: {
+    backgroundColor: Colors.surface,
     borderWidth: 1,
-    padding: Spacing.md,
-    marginBottom: Spacing.xl,
+    borderColor: Colors.border,
+    ...Shadows.card,
   },
-  securityHeader: {
+  actionBtnSecondaryText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.navy,
+  },
+  infoCard: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
+    alignItems: 'flex-start',
+    gap: Spacing.sm,
+    backgroundColor: 'rgba(22, 102, 197, 0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(22, 102, 197, 0.15)',
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    marginBottom: Spacing.lg,
   },
-  securityTitle: {
+  infoTitle: {
     fontSize: 13,
-    fontWeight: '800',
-    color: Colors.primary,
-    marginLeft: Spacing.xs,
+    fontWeight: '700',
+    color: Colors.navy,
   },
-  securityDesc: {
+  infoDesc: {
     fontSize: 12,
     color: Colors.textSecondary,
-    lineHeight: 16,
+    lineHeight: 17,
+    marginTop: 2,
   },
   sectionHeaderRow: {
     flexDirection: 'row',
@@ -350,46 +410,64 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '800',
-    color: Colors.text,
+    color: Colors.navy,
   },
   seeAllBtn: {
     fontSize: 13,
     fontWeight: '600',
-    color: Colors.primary,
+    color: Colors.blue,
   },
-  txItemCard: {
+  emptyCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: 'center',
+    paddingVertical: Spacing.xxxl,
+  },
+  emptyText: {
+    fontSize: 13,
+    color: Colors.textMuted,
+    marginTop: Spacing.sm,
+  },
+  txCard: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
     padding: Spacing.md,
     marginBottom: Spacing.xs,
+    ...Shadows.card,
   },
   txIconBox: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: Colors.surfaceAlt,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: Spacing.md,
   },
-  txContentBox: {
+  txContent: {
     flex: 1,
   },
   txTitle: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
-    color: Colors.text,
+    color: Colors.navy,
   },
   txCode: {
     fontSize: 11,
-    color: Colors.textSecondary,
+    color: Colors.textMuted,
+    fontFamily: 'monospace',
     marginTop: 1,
   },
   txDate: {
     fontSize: 11,
-    color: Colors.textMuted,
+    color: Colors.textSecondary,
     marginTop: 2,
   },
   txAmountBox: {
@@ -398,14 +476,6 @@ const styles = StyleSheet.create({
   txAmount: {
     fontSize: 14,
     fontWeight: '800',
-  },
-  emptyCard: {
-    alignItems: 'center',
-    paddingVertical: Spacing.xl,
-  },
-  emptyText: {
-    fontSize: 14,
-    color: Colors.textMuted,
-    marginTop: Spacing.sm,
+    fontVariant: ['tabular-nums'],
   },
 });

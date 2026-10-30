@@ -9,12 +9,11 @@ import {
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Badge } from '../../components/Badge';
-import { Button } from '../../components/Button';
-import { Card } from '../../components/Card';
-import { Colors, Spacing } from '../../constants/theme';
+import { BorderRadius, Colors, Shadows, Spacing } from '../../constants/theme';
+import { TrustLevelCard } from '../../components/trust/TrustLevelCard';
+import type { TrustLayer } from '../../components/trust/TrustLevelCard';
 import { useAuth } from '../../context/AuthContext';
 
 export default function AccountScreen() {
@@ -28,21 +27,6 @@ export default function AccountScreen() {
   const performLogout = async () => {
     await logout();
     router.replace('/login');
-  };
-
-  const handleVerifySim = () => {
-    if (profile?.verificationStatus !== 'VERIFIED') {
-      Alert.alert(
-        'Yêu cầu xác minh danh tính',
-        'Để xác thực quyền sở hữu SIM, bạn cần hoàn thành xác thực CCCD (eKYC) trước.',
-        [
-          { text: 'Để sau', style: 'cancel' },
-          { text: 'Xác minh ngay', onPress: () => router.push('/kyc') },
-        ]
-      );
-      return;
-    }
-    router.push('/sims/verify');
   };
 
   const handleLogout = () => {
@@ -63,139 +47,175 @@ export default function AccountScreen() {
   };
 
   const isVerified = profile?.verificationStatus === 'VERIFIED';
+  const isPending = profile?.verificationStatus === 'PENDING_VERIFICATION';
+
+  // Mask helper
+  const maskSensitive = (str?: string) => {
+    if (!str) return 'Chưa cập nhật';
+    if (str.length <= 4) return '••••';
+    return '•••• ' + str.slice(-4);
+  };
+
+  // Build Trust ID layers
+  const trustLayers: TrustLayer[] = [
+    {
+      key: 'cccd_nfc',
+      label: 'CCCD gắn chip (NFC)',
+      sublabel: isVerified ? 'Đã đọc & xác thực chữ ký số chip C06' : 'Đọc chip bảo mật qua công nghệ NFC',
+      status: isVerified ? 'verified' : (isPending ? 'pending' : 'not_submitted'),
+      verifiedDate: profile?.verifiedAt,
+      nextAction: isVerified ? undefined : 'Quét NFC',
+      onAction: () => router.push('/kyc/nfc'),
+    },
+    {
+      key: 'ekyc_face',
+      label: 'Khuôn mặt & eKYC (AI Liveness)',
+      sublabel: isVerified ? 'Độ trùng khớp sinh trắc học 98%' : 'Chụp ảnh chân dung chống giả mạo',
+      status: isVerified ? 'verified' : (isPending ? 'pending' : 'not_submitted'),
+      verifiedDate: profile?.verifiedAt,
+      nextAction: isVerified ? undefined : 'Chụp eKYC',
+      onAction: () => router.push('/kyc'),
+    },
+    {
+      key: 'sim',
+      label: 'SIM chính chủ telco',
+      sublabel: 'Đối chiếu thuê bao nhà mạng Viettel / Vina / Mobi',
+      status: isVerified ? 'verified' : 'not_submitted',
+      nextAction: 'Đối soát',
+      onAction: () => router.push('/sims/verify'),
+    },
+    {
+      key: 'bank',
+      label: 'Tài khoản ngân hàng rút tiền',
+      sublabel: 'Tài khoản chính chủ nhận tiền thanh toán',
+      status: isVerified ? 'verified' : 'not_submitted',
+      nextAction: 'Quản lý',
+      onAction: () => router.push('/withdraw'),
+    },
+  ];
+
+  const overallLevel = isVerified ? 'full' : (isPending ? 'standard' : 'none');
 
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Profile Card */}
-        <Card style={styles.profileCard}>
+        <View style={styles.profileCard}>
           <View style={styles.avatarCircle}>
-            <Ionicons name="person" size={40} color={Colors.primary} />
+            <MaterialCommunityIcons name="account" size={36} color={Colors.navy} />
           </View>
-          <Text style={styles.userName}>
-            {profile?.fullName || user?.fullName || user?.userName || 'Người dùng TrustSim'}
-          </Text>
-          <Text style={styles.userEmail}>{profile?.email || user?.email}</Text>
-
-          <View style={styles.badgeWrapper}>
-            <Badge
-              status={profile?.verificationStatus || 'UNVERIFIED'}
-              label={isVerified ? 'Đã xác minh' : 'Chưa xác minh'}
-            />
+          <View style={styles.profileInfo}>
+            <Text style={styles.userName}>
+              {profile?.fullName || user?.fullName || user?.userName || 'Người dùng TrustSim'}
+            </Text>
+            <Text style={styles.userEmail}>{profile?.email || user?.email}</Text>
           </View>
-        </Card>
+        </View>
 
-        {/* eKYC Call to Action */}
-        <Card style={[styles.ekycBanner, isVerified && styles.ekycBannerVerified]}>
-          <View style={styles.ekycHeaderRow}>
-            <Ionicons
-              name={isVerified ? 'shield-checkmark' : 'shield-outline'}
-              size={28}
-              color={isVerified ? Colors.success : Colors.warning}
-            />
-            <View style={{ flex: 1, marginLeft: Spacing.sm }}>
-              <Text style={styles.ekycTitle}>
-                {isVerified ? 'Danh Tính Đã Được Xác Minh' : 'Xác Thực Danh Tính Tài Khoản'}
-              </Text>
-              <Text style={styles.ekycDesc}>
-                {isVerified
-                  ? 'Tài khoản của bạn đã được chứng thực chính chủ và bảo vệ an toàn. Bạn có thể thực hiện mọi giao dịch mua bán SIM trên hệ thống.'
-                  : 'Chụp ảnh CCCD và ảnh chân dung khuôn mặt để hoàn tất xác minh tài khoản, sẵn sàng tham gia giao dịch an toàn.'}
-              </Text>
+        {/* Trust ID Section (Prominent) */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Hồ Sơ Định Danh (Trust ID)</Text>
+        </View>
+
+        <TrustLevelCard
+          layers={trustLayers}
+          overallLevel={overallLevel}
+          style={{ marginBottom: Spacing.lg }}
+        />
+
+        {/* Identity Details Card (Masked) */}
+        <View style={styles.detailsCard}>
+          <Text style={styles.cardHeaderTitle}>THÔNG TIN XÁC THỰC BẢO MẬT</Text>
+
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>Số CCCD/Định danh</Text>
+            <Text style={styles.detailValue}>{maskSensitive(profile?.identityNumber)}</Text>
+          </View>
+
+          <View style={styles.divider} />
+
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>Số điện thoại liên hệ</Text>
+            <Text style={styles.detailValue}>{maskSensitive(profile?.phoneNumber)}</Text>
+          </View>
+
+          <View style={styles.divider} />
+
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>Địa chỉ thường trú</Text>
+            <Text style={styles.detailValue} numberOfLines={1}>
+              {profile?.address || 'Đã mã hóa bảo mật'}
+            </Text>
+          </View>
+        </View>
+
+        {/* System & Navigation Links */}
+        <View style={styles.menuCard}>
+          <Text style={styles.cardHeaderTitle}>TIỆN ÍCH & GIAO DỊCH</Text>
+
+          <TouchableOpacity
+            style={styles.navRow}
+            onPress={() => router.push('/(tabs)/contracts')}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Hợp đồng điện tử"
+          >
+            <View style={styles.navLeft}>
+              <MaterialCommunityIcons name="file-document-outline" size={20} color={Colors.navy} />
+              <Text style={styles.navText}>Hợp đồng chuyển nhượng PAdES</Text>
             </View>
-          </View>
+            <MaterialCommunityIcons name="chevron-right" size={20} color={Colors.textMuted} />
+          </TouchableOpacity>
 
-          {!isVerified && (
-            <Button
-              title="XÁC THỰC TÀI KHOẢN NGAY"
-              variant="accent"
-              size="md"
-              onPress={() => router.push('/kyc')}
-              style={{ marginTop: Spacing.md }}
-            />
-          )}
-        </Card>
-
-        {/* Account Details List */}
-        <Card style={styles.menuCard}>
-          <Text style={styles.menuHeader}>HỒ SƠ CÁ NHÂN</Text>
-
-          <View style={styles.menuItem}>
-            <Text style={styles.menuLabel}>Số CCCD / CMND:</Text>
-            <Text style={styles.menuValue}>{profile?.identityNumber || 'Chưa cập nhật'}</Text>
-          </View>
-
-          <View style={styles.menuDivider} />
-
-          <View style={styles.menuItem}>
-            <Text style={styles.menuLabel}>Số điện thoại:</Text>
-            <Text style={styles.menuValue}>{profile?.phoneNumber || 'Chưa cập nhật'}</Text>
-          </View>
-
-          <View style={styles.menuDivider} />
-
-          <View style={styles.menuItem}>
-            <Text style={styles.menuLabel}>Địa chỉ thường trú:</Text>
-            <Text style={styles.menuValue}>{profile?.address || 'Chưa cập nhật'}</Text>
-          </View>
-        </Card>
-
-        {/* Navigation Shortcuts */}
-        <Card style={styles.menuCard}>
-          <Text style={styles.menuHeader}>TIỆN ÍCH HỆ THỐNG</Text>
+          <View style={styles.divider} />
 
           <TouchableOpacity
             style={styles.navRow}
             onPress={() => router.push('/transactions')}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Lịch sử giao dịch ví"
           >
             <View style={styles.navLeft}>
-              <Ionicons name="document-text-outline" size={20} color={Colors.primary} />
+              <MaterialCommunityIcons name="history" size={20} color={Colors.navy} />
               <Text style={styles.navText}>Lịch sử giao dịch ví</Text>
             </View>
-            <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
+            <MaterialCommunityIcons name="chevron-right" size={20} color={Colors.textMuted} />
           </TouchableOpacity>
 
-          <View style={styles.menuDivider} />
+          <View style={styles.divider} />
 
           <TouchableOpacity
             style={styles.navRow}
-            onPress={handleVerifySim}
+            onPress={() => router.push('/sims/verify')}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Xác thực SIM chính chủ"
           >
             <View style={styles.navLeft}>
-              <Ionicons name="checkmark-done-circle-outline" size={20} color={Colors.accent} />
-              <Text style={styles.navText}>Xác thực SIM chính chủ</Text>
+              <MaterialCommunityIcons name="sim" size={20} color={Colors.navy} />
+              <Text style={styles.navText}>Đối soát SIM chính chủ</Text>
             </View>
-            <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
+            <MaterialCommunityIcons name="chevron-right" size={20} color={Colors.textMuted} />
           </TouchableOpacity>
-
-          <View style={styles.menuDivider} />
-
-          <TouchableOpacity
-            style={styles.navRow}
-            onPress={() => router.push('/contract/preview')}
-            activeOpacity={0.7}
-          >
-            <View style={styles.navLeft}>
-              <Ionicons name="receipt-outline" size={20} color={Colors.success} />
-              <Text style={styles.navText}>Hợp đồng chuyển nhượng SIM</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
-          </TouchableOpacity>
-        </Card>
+        </View>
 
         {/* Logout Button */}
-        <Button
-          title="Đăng Xuất Tài Khoản"
-          variant="danger"
-          size="md"
-          icon={<Ionicons name="log-out-outline" size={18} color={Colors.textInverse} />}
-          onPress={handleLogout}
+        <TouchableOpacity
           style={styles.logoutBtn}
-        />
+          onPress={handleLogout}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Đăng xuất tài khoản"
+        >
+          <MaterialCommunityIcons name="logout" size={18} color={Colors.danger} />
+          <Text style={styles.logoutBtnText}>Đăng Xuất Tài Khoản</Text>
+        </TouchableOpacity>
 
-        <Text style={styles.versionText}>TrustSim Mobile v1.0.0 (Expo SDK 57)</Text>
+        <Text style={styles.versionText}>TrustSim Mobile · Kiến trúc Trust Ledger v2.0</Text>
       </ScrollView>
     </SafeAreaView>
   );
@@ -208,113 +228,133 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: Spacing.lg,
+    paddingBottom: Spacing.xxxl,
   },
   profileCard: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: Spacing.xl,
-    marginBottom: Spacing.md,
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.lg,
+    marginBottom: Spacing.lg,
+    ...Shadows.card,
   },
   avatarCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(30, 58, 138, 0.08)',
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: Colors.surfaceAlt,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: Spacing.sm,
+    marginRight: Spacing.md,
+  },
+  profileInfo: {
+    flex: 1,
   },
   userName: {
-    fontSize: 20,
+    fontSize: 17,
     fontWeight: '800',
-    color: Colors.text,
+    color: Colors.navy,
   },
   userEmail: {
     fontSize: 13,
     color: Colors.textSecondary,
     marginTop: 2,
   },
-  badgeWrapper: {
-    marginTop: Spacing.sm,
+  sectionHeader: {
+    marginBottom: Spacing.sm,
   },
-  ekycBanner: {
-    backgroundColor: Colors.warningLight,
-    borderWidth: 1,
-    borderColor: '#FED7AA',
-    padding: Spacing.md,
-    marginBottom: Spacing.md,
-  },
-  ekycBannerVerified: {
-    backgroundColor: Colors.successLight,
-    borderColor: '#A7F3D0',
-  },
-  ekycHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-  },
-  ekycTitle: {
+  sectionTitle: {
     fontSize: 15,
     fontWeight: '800',
-    color: Colors.text,
+    color: Colors.navy,
   },
-  ekycDesc: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    marginTop: 3,
-    lineHeight: 17,
-  },
-  menuCard: {
+  detailsCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
     padding: Spacing.md,
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.lg,
+    ...Shadows.card,
   },
-  menuHeader: {
+  cardHeaderTitle: {
     fontSize: 11,
     fontWeight: '800',
     color: Colors.textMuted,
     letterSpacing: 0.5,
     marginBottom: Spacing.sm,
   },
-  menuItem: {
+  detailRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     paddingVertical: Spacing.xs + 2,
+    minHeight: 40,
   },
-  menuLabel: {
+  detailLabel: {
     fontSize: 13,
     color: Colors.textSecondary,
   },
-  menuValue: {
+  detailValue: {
     fontSize: 13,
     fontWeight: '600',
-    color: Colors.text,
+    color: Colors.navy,
+    fontFamily: 'monospace',
   },
-  menuDivider: {
+  divider: {
     height: 1,
     backgroundColor: Colors.borderLight,
-    marginVertical: Spacing.xs,
+  },
+  menuCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.md,
+    marginBottom: Spacing.xl,
+    ...Shadows.card,
   },
   navRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingVertical: Spacing.sm,
+    minHeight: 48,
   },
   navLeft: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: Spacing.sm,
   },
   navText: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.text,
-    marginLeft: Spacing.sm,
+    color: Colors.navy,
   },
   logoutBtn: {
-    marginTop: Spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: BorderRadius.md,
+    minHeight: 48,
+    marginBottom: Spacing.md,
+  },
+  logoutBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.danger,
   },
   versionText: {
     fontSize: 12,
     color: Colors.textMuted,
     textAlign: 'center',
-    marginTop: Spacing.lg,
+    marginTop: Spacing.sm,
   },
 });

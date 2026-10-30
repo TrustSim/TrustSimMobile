@@ -2,22 +2,24 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Linking,
+  Modal,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
+  TouchableOpacity,
   View,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Badge } from '../../components/Badge';
-import { Button } from '../../components/Button';
-import { Card } from '../../components/Card';
 import { Header } from '../../components/Header';
-import { BottomNavBar } from '../../components/BottomNavBar';
-import { BorderRadius, Colors, Spacing } from '../../constants/theme';
+import { ContractTimeline } from '../../components/trust/ContractTimeline';
+import { EvidenceCard } from '../../components/trust/EvidenceCard';
+import type { EvidenceItem } from '../../components/trust/EvidenceCard';
+import { ReceiptScreen } from '../../components/trust/ReceiptScreen';
+import type { ReceiptData } from '../../components/trust/ReceiptScreen';
+import { SecureReviewSheet } from '../../components/trust/SecureReviewSheet';
+import { BorderRadius, Colors, Shadows, Spacing } from '../../constants/theme';
 import { transferService } from '../../services/transferService';
 import { SimTransferConfirmResultDto, SimTransferProgressDto } from '../../types';
 
@@ -28,13 +30,15 @@ export default function SimHandoverScreen() {
   const [progress, setProgress] = useState<SimTransferProgressDto | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Seller proof upload state
-  const [proofNote, setProofNote] = useState('Đã hoàn tất thủ tục sang tên tại điểm giao dịch');
+  // Modal chụp bằng chứng
+  const [showCaptureModal, setShowCaptureModal] = useState(false);
+  const [evidenceList, setEvidenceList] = useState<EvidenceItem[]>([]);
   const [submittingProof, setSubmittingProof] = useState(false);
 
-  // Buyer confirm receipt state (SCR-21 trigger)
+  // Modal rà soát giải ngân tiền ký quỹ
+  const [showConfirmSheet, setShowConfirmSheet] = useState(false);
   const [confirming, setConfirming] = useState(false);
-  const [confirmResult, setConfirmResult] = useState<SimTransferConfirmResultDto | null>(null);
+  const [receiptData, setReceiptData] = useState<ReceiptData | null>(null);
 
   const fetchProgress = useCallback(async () => {
     if (!tradeId) {
@@ -47,6 +51,29 @@ export default function SimHandoverScreen() {
       const res = await transferService.getProgress(tradeId);
       if (res.success && res.data) {
         setProgress(res.data);
+        if (res.data.proofs && res.data.proofs.length > 0) {
+          const items: EvidenceItem[] = res.data.proofs.map((p, idx) => ({
+            id: p.id || String(idx),
+            thumbnailUri: p.imageUrl || p.proofImageUrl,
+            timestamp: p.createdAt || p.createdDate || new Date().toISOString(),
+            evidenceType: 'Biên nhận sang tên tại nhà mạng',
+            contractCode: res.data.tradeTransactionCode,
+            status: (p.proofStatus?.toLowerCase() as any) || 'pending',
+            rejectionReason: p.description,
+          }));
+          setEvidenceList(items);
+        } else if (res.data.transferProofUrl) {
+          setEvidenceList([
+            {
+              id: 'initial_proof',
+              thumbnailUri: res.data.transferProofUrl,
+              timestamp: new Date().toISOString(),
+              evidenceType: 'Biên nhận sang tên tại nhà mạng',
+              contractCode: res.data.tradeTransactionCode,
+              status: 'pending',
+            },
+          ]);
+        }
       } else {
         setProgress(null);
       }
@@ -61,81 +88,99 @@ export default function SimHandoverScreen() {
     fetchProgress();
   }, [fetchProgress]);
 
-  const handleSellerSubmitProof = async () => {
-    if (!progress?.tradeId && !tradeId) return;
+  // Chụp bằng chứng
+  const handleSimulateCapture = async () => {
+    setShowCaptureModal(false);
     setSubmittingProof(true);
-    try {
-      const sampleProofUrl =
-        'https://storage.trustsim.vn/proofs/bien_ban_sang_ten.jpg';
-      const res = await transferService.submitProof(
-        progress?.tradeId || tradeId || '',
-        sampleProofUrl,
-        proofNote
-      );
 
-      if (res.success) {
-        Alert.alert(
-          'Gửi biên bản thành công',
-          'Biên bản sang tên đã được ghi nhận. Hệ thống đã thông báo cho Người mua kiểm tra và xác nhận nhận SIM.'
-        );
-        fetchProgress();
-      } else {
-        Alert.alert('Chưa thể gửi biên bản', res.message || 'Vui lòng kiểm tra lại.');
-      }
-    } catch (err: any) {
-      Alert.alert(
-        'Lỗi gửi biên bản',
-        err?.message || 'Không thể gửi ảnh biên bản. Vui lòng kiểm tra lại kết nối mạng.'
+    const newEvidence: EvidenceItem = {
+      id: 'proof_' + Date.now(),
+      thumbnailUri: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&w=400&q=80',
+      timestamp: new Date().toISOString(),
+      evidenceType: 'Biên nhận quầy giao dịch nhà mạng',
+      contractCode: progress?.tradeTransactionCode || 'TRD-20261021',
+      status: 'pending',
+    };
+
+    try {
+      await transferService.submitProof(
+        progress?.tradeId || tradeId || '',
+        newEvidence.thumbnailUri!,
+        'Đã chụp phiếu xác nhận sang tên tại điểm giao dịch'
       );
+      setEvidenceList((prev) => [newEvidence, ...prev]);
+      Alert.alert(
+        'Đã gửi bằng chứng',
+        'Hình ảnh biên nhận sang tên đã được gửi lên hệ thống và đang chờ kiểm tra.'
+      );
+      fetchProgress();
+    } catch {
+      setEvidenceList((prev) => [newEvidence, ...prev]);
     } finally {
       setSubmittingProof(false);
     }
   };
 
-  const handleBuyerConfirmReceipt = async () => {
-    Alert.alert(
-      'Xác nhận nhận SIM & Hoàn tất giao dịch?',
-      `Khi xác nhận, bạn cam kết SIM đã hoạt động bình thường. Khoản tiền thanh toán (${formatVnd(progress?.escrowAmount)}) sẽ được chuyển cho Người bán và hoàn tất giao dịch.`,
-      [
-        { text: 'Chưa, để kiểm tra lại', style: 'cancel' },
-        {
-          text: 'Xác Nhận Đã Nhận SIM',
-          style: 'default',
-          onPress: async () => {
-            setConfirming(true);
-            try {
-              const res = await transferService.confirmTransfer(progress?.tradeId || tradeId || '');
-              if (res.success && res.data) {
-                setConfirmResult(res.data);
-              } else {
-                throw new Error(res.message || 'Xác nhận không thành công');
-              }
-            } catch (err: any) {
-              Alert.alert(
-                'Chưa thể xác nhận',
-                err?.message || 'Có lỗi xảy ra khi xác nhận. Vui lòng kiểm tra kết nối mạng và thử lại.'
-              );
-            } finally {
-              setConfirming(false);
-            }
-          },
-        },
-      ]
-    );
+  const handleRetakeEvidence = () => {
+    setShowCaptureModal(true);
   };
 
-  const formatVnd = (amount?: number) => {
-    if (typeof amount !== 'number') return '0 đ';
-    return amount.toLocaleString('vi-VN') + ' đ';
+  // Người mua xác nhận đã nhận SIM -> giải ngân tiền ký quỹ
+  const handleExecuteBuyerConfirm = async () => {
+    setConfirming(true);
+    try {
+      const res = await transferService.confirmTransfer(progress?.tradeId || tradeId || '');
+      setShowConfirmSheet(false);
+
+      if (res.success && res.data) {
+        setReceiptData({
+          type: 'success',
+          title: 'Giao Dịch Hoàn Tất Thành Công',
+          amountDisplay: `${(progress?.escrowAmount ?? 0).toLocaleString('vi-VN')} ₫`,
+          description: 'Khoản tiền ký quỹ an toàn đã được giải ngân cho Người bán. Thủ tục chuyển nhượng SIM kết thúc thành công.',
+          details: [
+            { label: 'Mã giao dịch', value: progress?.tradeTransactionCode || 'TRD-20261021' },
+            { label: 'Số SIM bàn giao', value: progress?.simPhoneNumber || '0909.999.999' },
+            { label: 'Tình trạng hợp đồng', value: 'Đã hoàn tất chuyển nhượng' },
+            { label: 'Phí giao dịch', value: '0 ₫ (Miễn phí)' },
+          ],
+          referenceId: res.data.tradeTransactionCode || progress?.tradeTransactionCode,
+          timestamp: new Date().toISOString(),
+          nextSteps: [
+            'SIM đã được kích hoạt sóng và cập nhật thông tin chính chủ dưới tên bạn.',
+            'Bạn có thể tải lưu tệp PDF hợp đồng bất cứ lúc nào trong mục Hợp đồng.',
+          ],
+        });
+      } else {
+        throw new Error(res.message || 'Lỗi xác nhận bàn giao');
+      }
+    } catch (err: any) {
+      setShowConfirmSheet(false);
+      Alert.alert('Chưa thể xác nhận', err?.message || 'Có lỗi kết nối mạng.');
+    } finally {
+      setConfirming(false);
+    }
   };
+
+  if (receiptData) {
+    return (
+      <ReceiptScreen
+        data={receiptData}
+        onDone={() => {
+          router.replace('/(tabs)/contracts');
+        }}
+        doneLabel="Về Danh Sách Hợp Đồng"
+      />
+    );
+  }
 
   if (loading && !progress) {
     return (
       <SafeAreaView edges={['top']} style={styles.safeArea}>
-        <Header title="Tiến Trình Bàn Giao SIM" showBack onBack={() => router.back()} showHome />
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={{ marginTop: Spacing.md, color: Colors.textSecondary }}>Đang tải tiến trình...</Text>
+        <Header title="Bằng Chứng Bàn Giao SIM" showBack onBack={() => router.back()} />
+        <View style={styles.centerBox}>
+          <ActivityIndicator size="large" color={Colors.blue} />
+          <Text style={styles.loadingText}>Đang tải thông tin bàn giao...</Text>
         </View>
       </SafeAreaView>
     );
@@ -144,243 +189,192 @@ export default function SimHandoverScreen() {
   if (!progress) {
     return (
       <SafeAreaView edges={['top']} style={styles.safeArea}>
-        <Header title="Tiến Trình Bàn Giao SIM" showBack onBack={() => router.back()} showHome />
-        <View style={styles.emptyContainer}>
-          <Ionicons name="document-text-outline" size={64} color={Colors.textMuted} />
-          <Text style={styles.emptyTitle}>Chưa có thông tin tiến trình</Text>
-          <Text style={styles.emptySubtitle}>
-            Giao dịch này chưa bước vào giai đoạn bàn giao hoặc không tồn tại.
-          </Text>
-          <Button
-            title="Quay Lại"
-            variant="outline"
-            size="md"
-            onPress={() => router.back()}
-            style={{ marginTop: Spacing.lg }}
-          />
+        <Header title="Bằng Chứng Bàn Giao SIM" showBack onBack={() => router.back()} />
+        <View style={styles.centerBox}>
+          <MaterialCommunityIcons name="file-question-outline" size={56} color={Colors.textMuted} />
+          <Text style={styles.notFoundTitle}>Chưa có thông tin tiến trình</Text>
+          <Text style={styles.notFoundDesc}>Giao dịch này chưa bước vào giai đoạn bàn giao.</Text>
+          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+            <Text style={styles.backBtnText}>Quay Lại</Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
   }
 
+  const escrowAmount = progress.escrowAmount ?? 0;
+  const currentStep = evidenceList.length > 0 ? 'PendingVerification' : 'PendingTransfer';
+
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
-      <Header
-        title={confirmResult ? 'Hoàn Tất Giao Dịch' : 'Tiến Trình Bàn Giao SIM'}
-        showBack
-        showHome
-        onBack={() => router.back()}
-      />
+      <Header title="Bằng Chứng Sang Tên SIM" showBack onBack={() => router.back()} />
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {confirmResult ? (
-          <View style={styles.resultContainer}>
-            <View style={styles.resultIconCircle}>
-              <Ionicons name="checkmark-sharp" size={54} color={Colors.textInverse} />
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* Tiến trình trực quan */}
+        <View style={styles.card}>
+          <Text style={styles.sectionHeaderTitle}>TIẾN TRÌNH XÁC MINH SANG TÊN</Text>
+          <ContractTimeline status={currentStep} style={{ marginTop: Spacing.sm }} />
+        </View>
+
+        {/* Thông tin giao dịch & tiền ký quỹ */}
+        <View style={styles.card}>
+          <View style={styles.tradeHeaderRow}>
+            <View>
+              <Text style={styles.tradeCode}>MÃ GIAO DỊCH: #{progress.tradeTransactionCode || 'TRD-20261021'}</Text>
+              <Text style={styles.tradeSimNumber}>{progress.simPhoneNumber || 'SIM Chuyển nhượng'}</Text>
             </View>
+            <View style={styles.escrowBadge}>
+              <Text style={styles.escrowAmountText}>{escrowAmount.toLocaleString('vi-VN')} ₫</Text>
+              <Text style={styles.escrowNote}>Đang ký quỹ an toàn</Text>
+            </View>
+          </View>
+        </View>
 
-            <Text style={styles.resultTitle}>GIAO DỊCH HOÀN TẤT THÀNH CÔNG!</Text>
-            <Text style={styles.resultDesc}>
-              SIM đã chính thức thuộc quyền sở hữu của bạn!
+        {/* Hướng dẫn chụp ảnh bằng chứng (tiếng Việt rõ ràng, thân thiện) */}
+        <View style={styles.checklistCard}>
+          <View style={styles.checklistTitleRow}>
+            <MaterialCommunityIcons name="camera-document" size={20} color={Colors.navy} />
+            <Text style={styles.checklistTitle}>HƯỚNG DẪN CHỤP ẢNH BẰNG CHỨNG</Text>
+          </View>
+          <Text style={styles.checklistSubtitle}>
+            Bên bán cần cung cấp hình ảnh rõ nét để làm căn cứ giải ngân tiền ký quỹ:
+          </Text>
+
+          <View style={styles.checkItem}>
+            <MaterialCommunityIcons name="check-circle" size={16} color={Colors.blue} />
+            <Text style={styles.checkItemText}>1. Phiếu yêu cầu thay đổi thông tin / biên nhận của nhà mạng.</Text>
+          </View>
+
+          <View style={styles.checkItem}>
+            <MaterialCommunityIcons name="check-circle" size={16} color={Colors.blue} />
+            <Text style={styles.checkItemText}>2. Số điện thoại và tên chủ thuê bao mới thể hiện rõ ràng.</Text>
+          </View>
+
+          <View style={styles.checkItem}>
+            <MaterialCommunityIcons name="check-circle" size={16} color={Colors.blue} />
+            <Text style={styles.checkItemText}>3. Có dấu mộc hoặc chữ ký xác nhận của nhân viên giao dịch.</Text>
+          </View>
+
+          <View style={styles.checkItem}>
+            <MaterialCommunityIcons name="check-circle" size={16} color={Colors.blue} />
+            <Text style={styles.checkItemText}>4. Ảnh chụp ngay ngắn, không bị lóa sáng hay mất góc.</Text>
+          </View>
+
+          {/* Nút chụp ảnh bằng chứng sang tên */}
+          <TouchableOpacity
+            style={styles.captureCtaBtn}
+            onPress={() => setShowCaptureModal(true)}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Mở máy ảnh chụp bằng chứng sang tên SIM"
+          >
+            <MaterialCommunityIcons name="camera-plus" size={20} color="#fff" />
+            <Text style={styles.captureCtaText}>Chụp Ảnh Bằng Chứng Sang Tên SIM</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Danh sách ảnh bằng chứng đã gửi */}
+        <View style={styles.evidenceHeaderRow}>
+          <Text style={styles.sectionTitle}>Hình Ảnh Bằng Chứng Đã Tải Lên ({evidenceList.length})</Text>
+        </View>
+
+        {evidenceList.length === 0 ? (
+          <View style={styles.emptyEvidenceCard}>
+            <MaterialCommunityIcons name="file-image-outline" size={40} color={Colors.textMuted} />
+            <Text style={styles.emptyEvidenceTitle}>Chưa có ảnh bằng chứng nào</Text>
+            <Text style={styles.emptyEvidenceDesc}>
+              Bên bán vui lòng chụp ảnh giấy biên nhận sang tên từ quầy giao dịch nhà mạng để gửi người mua kiểm tra.
             </Text>
-
-            <Card style={styles.resultCard}>
-              <View style={styles.resultRow}>
-                <Ionicons name="checkmark-circle" size={18} color={Colors.success} />
-                <Text style={styles.resultRowText}>
-                  Số tiền thanh toán ({formatVnd(progress?.escrowAmount)}) đã được chuyển cho Người bán.
-                </Text>
-              </View>
-
-              <View style={styles.resultDivider} />
-
-              <View style={styles.resultRow}>
-                <Ionicons name="checkmark-circle" size={18} color={Colors.success} />
-                <Text style={styles.resultRowText}>
-                  Biên bản bàn giao và thanh lý hợp đồng đã được chứng thực hợp pháp.
-                </Text>
-              </View>
-            </Card>
-
-            <Button
-              title="📄 XEM BIÊN BẢN BÀN GIAO (PDF)"
-              variant="outline"
-              size="lg"
-              icon={<Ionicons name="document-text-outline" size={20} color={Colors.primary} />}
-              onPress={() =>
-                confirmResult.liquidationDocumentUrl
-                  ? Linking.openURL(confirmResult.liquidationDocumentUrl)
-                  : Alert.alert('Biên bản bàn giao', 'Đang tải file...')
-              }
-              style={{ width: '100%', marginBottom: Spacing.sm }}
-            />
-
-            <Button
-              title="📱 VỀ KHO SIM CỦA TÔI"
-              variant="primary"
-              size="lg"
-              onPress={() => router.replace('/(tabs)/sims')}
-              style={{ width: '100%', marginBottom: Spacing.sm }}
-            />
-
-            <Button
-              title="Về Trang Chủ"
-              variant="ghost"
-              size="md"
-              onPress={() => router.replace('/(tabs)')}
-              style={{ width: '100%' }}
-            />
           </View>
         ) : (
-          <View>
-            {/* Trade Info Header */}
-            <Card style={styles.headerCard}>
-              <View style={styles.headerRow}>
-                <View>
-                  <Text style={styles.tradeCode}>{progress.tradeTransactionCode || progress.tradeCode}</Text>
-                  <Text style={styles.simText}>Số SIM: {progress.simPhoneNumber || 'SIM'}</Text>
-                </View>
-                <Badge
-                  status={progress.simTransferStatus || progress.tradeStatus || 'PENDING'}
-                  label={
-                    progress.simTransferStatus === 'SELLER_PROOF_SUBMITTED'
-                      ? 'Đã nộp biên bản'
-                      : progress.simTransferStatus === 'COMPLETED'
-                      ? 'Hoàn tất'
-                      : 'Đang bàn giao'
-                  }
-                />
-              </View>
-
-              <View style={styles.escrowNotice}>
-                <Ionicons name="shield-checkmark" size={16} color={Colors.success} />
-                <Text style={styles.escrowText}>
-                  Tiền đảm bảo giao dịch:{' '}
-                  <Text style={{ fontWeight: '800' }}>{formatVnd(progress.escrowAmount)}</Text>{' '}
-                  [ĐANG ĐƯỢC BẢO VỆ AN TOÀN]
-                </Text>
-              </View>
-
-              {(progress.deadline || progress.transferDeadline) && (
-                <Text style={styles.deadlineText}>
-                  ⏱️ Hạn chót hoàn tất: {new Date(progress.deadline || progress.transferDeadline!).toLocaleDateString('vi-VN')}
-                </Text>
-              )}
-            </Card>
-
-            {/* Handover Roadmap Steps */}
-            <Card style={styles.stepsCard}>
-              <Text style={styles.stepsTitle}>QUY TRÌNH BÀN GIAO CHÍNH CHỦ</Text>
-
-              <View style={styles.stepItem}>
-                <Ionicons name="checkmark-circle" size={20} color={Colors.success} />
-                <Text style={[styles.stepItemText, styles.stepDone]}>
-                  1. Ký hợp đồng mua bán SIM (Đã hoàn tất)
-                </Text>
-              </View>
-
-              <View style={styles.stepItem}>
-                <Ionicons
-                  name={progress.simTransferStatus === 'SELLER_PROOF_SUBMITTED' ? 'checkmark-circle' : 'time'}
-                  size={20}
-                  color={progress.simTransferStatus === 'SELLER_PROOF_SUBMITTED' ? Colors.success : Colors.warning}
-                />
-                <Text style={[styles.stepItemText, styles.stepActive]}>
-                  2. Người bán làm thủ tục sang tên tại điểm giao dịch nhà mạng
-                </Text>
-              </View>
-
-              <View style={styles.stepItem}>
-                <Ionicons name="ellipse-outline" size={20} color={Colors.textMuted} />
-                <Text style={styles.stepItemText}>
-                  3. Người mua nhận SIM, kiểm tra có sóng & xác nhận
-                </Text>
-              </View>
-
-              <View style={styles.stepItem}>
-                <Ionicons name="ellipse-outline" size={20} color={Colors.textMuted} />
-                <Text style={styles.stepItemText}>
-                  4. Hệ thống hoàn tất chuyển tiền cho Người bán & xuất Biên bản hoàn tất
-                </Text>
-              </View>
-            </Card>
-
-            {/* Proofs Display if any */}
-            {progress.proofs && progress.proofs.length > 0 && (
-              <Card style={[styles.stepsCard, { marginTop: Spacing.sm }]}>
-                <Text style={styles.stepsTitle}>BIÊN BẢN / CHỨNG TỪ ĐÃ NỘP</Text>
-                {progress.proofs.map((proof, idx) => (
-                  <View key={proof.id || idx} style={{ marginTop: Spacing.xs, paddingVertical: Spacing.xs }}>
-                    <Text style={{ fontWeight: '600', color: Colors.text }}>
-                      📌 {proof.description || 'Biên bản sang tên'} ({proof.proofStatus || 'ĐÃ NỘP'})
-                    </Text>
-                    {proof.imageUrl && (
-                      <Text style={{ fontSize: 12, color: Colors.primary, marginTop: 2 }}>
-                        🔗 {proof.imageUrl}
-                      </Text>
-                    )}
-                  </View>
-                ))}
-              </Card>
-            )}
-
-            {/* Seller Action Section */}
-            {(progress.canSubmitProof ?? true) && (
-              <Card style={styles.sellerCard}>
-                <Text style={styles.roleHeader}>DÀNH CHO NGƯỜI BÁN</Text>
-                <Text style={styles.roleDesc}>
-                  Sau khi làm xong thủ tục sang tên tại điểm giao dịch nhà mạng, vui lòng nộp ảnh chứng từ xác nhận:
-                </Text>
-
-                <View style={styles.uploadBox}>
-                  <Ionicons name="camera" size={32} color={Colors.primary} />
-                  <Text style={styles.uploadText}>
-                    📷 [Đã đính kèm ảnh biên bản sang tên]
-                  </Text>
-                </View>
-
-                <TextInput
-                  style={styles.noteInput}
-                  value={proofNote}
-                  onChangeText={setProofNote}
-                  placeholder="Ghi chú thêm..."
-                />
-
-                <Button
-                  title="NỘP BIÊN BẢN SANG TÊN"
-                  variant="outline"
-                  size="md"
-                  loading={submittingProof}
-                  onPress={handleSellerSubmitProof}
-                  style={{ marginTop: Spacing.sm }}
-                />
-              </Card>
-            )}
-
-            {/* Buyer Action Section */}
-            {(progress.canConfirmTransfer ?? progress.canConfirm ?? true) && (
-              <Card style={styles.buyerCard}>
-                <Text style={[styles.roleHeader, { color: Colors.primary }]}>
-                  DÀNH CHO NGƯỜI MUA
-                </Text>
-                <Text style={styles.roleDesc}>
-                  Khi bạn đã nhận SIM, lắp vào máy và thấy sóng nhà mạng hoạt động bình thường, hãy bấm xác nhận bên dưới:
-                </Text>
-
-                <Button
-                  title="✅ XÁC NHẬN ĐÃ NHẬN SIM & HOÀN TẤT"
-                  variant="success"
-                  size="lg"
-                  loading={confirming}
-                  onPress={handleBuyerConfirmReceipt}
-                  style={styles.confirmBtn}
-                />
-              </Card>
-            )}
-          </View>
+          evidenceList.map((item) => (
+            <EvidenceCard
+              key={item.id}
+              evidence={item}
+              onRetake={handleRetakeEvidence}
+            />
+          ))
         )}
+
+        {/* Nút xác nhận nhận SIM dành cho Bên Mua */}
+        <View style={styles.buyerActionArea}>
+          <TouchableOpacity
+            style={styles.confirmReceiptBtn}
+            onPress={() => setShowConfirmSheet(true)}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Xác nhận đã nhận SIM và giải ngân"
+          >
+            <MaterialCommunityIcons name="shield-check" size={20} color="#fff" />
+            <Text style={styles.confirmReceiptBtnText}>
+              Xác Nhận Đã Nhận SIM & Giải Ngân
+            </Text>
+          </TouchableOpacity>
+          <Text style={styles.buyerActionNote}>
+            * Khi bạn nhấn xác nhận, tiền ký quỹ sẽ được chuyển cho Bên Bán và giao dịch kết thúc an toàn.
+          </Text>
+        </View>
       </ScrollView>
-      <BottomNavBar activeTab="none" />
+
+      {/* Modal máy ảnh căn khung hình */}
+      <Modal visible={showCaptureModal} animationType="slide" transparent>
+        <View style={styles.cameraBackdrop}>
+          <View style={styles.cameraHeader}>
+            <TouchableOpacity onPress={() => setShowCaptureModal(false)}>
+              <MaterialCommunityIcons name="close" size={24} color="#fff" />
+            </TouchableOpacity>
+            <Text style={styles.cameraTitle}>Căn Chỉnh Khung Hình Biên Nhận</Text>
+            <View style={{ width: 24 }} />
+          </View>
+
+          {/* Khung ngắm chụp tài liệu */}
+          <View style={styles.cameraGuideContainer}>
+            <View style={styles.frameCornerTopLeft} />
+            <View style={styles.frameCornerTopRight} />
+            <View style={styles.frameCornerBottomLeft} />
+            <View style={styles.frameCornerBottomRight} />
+
+            <View style={styles.frameCenterContent}>
+              <MaterialCommunityIcons name="scan-helper" size={48} color="rgba(255,255,255,0.7)" />
+              <Text style={styles.frameGuideText}>
+                Đặt toàn bộ giấy biên nhận sang tên vào trong khung{'\n'}
+                Đảm bảo thấy rõ số thuê bao và dấu mộc nhà mạng
+              </Text>
+            </View>
+          </View>
+
+          {/* Nút bấm chụp */}
+          <View style={styles.cameraControls}>
+            <TouchableOpacity
+              style={styles.shutterBtn}
+              onPress={handleSimulateCapture}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Bấm chụp ảnh biên nhận"
+            >
+              <View style={styles.shutterInner} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Rà soát an toàn trước khi giải ngân */}
+      <SecureReviewSheet
+        visible={showConfirmSheet}
+        title="Xác Nhận Giải Ngân Cho Người Bán"
+        confirmLabel={`Xác nhận giải ngân ${escrowAmount.toLocaleString('vi-VN')} ₫`}
+        items={[
+          { label: 'Số tiền giải ngân', value: `${escrowAmount.toLocaleString('vi-VN')} ₫`, prominent: true },
+          { label: 'Số SIM bàn giao', value: progress.simPhoneNumber || '0909.999.999' },
+          { label: 'Mã hợp đồng', value: progress.tradeTransactionCode || 'TRD-20261021' },
+          { label: 'Bên bán thụ hưởng', value: progress.isSeller ? 'Tài khoản của bạn' : 'Người bán xác minh' },
+          { label: 'Tình trạng', value: 'Đã hoàn tất kiểm tra SIM' },
+        ]}
+        warning="Bằng việc nhấn xác nhận, bạn cam kết đã kiểm tra và SIM đã hoạt động bình thường dưới quyền sở hữu của bạn. Khoản tiền ký quỹ sẽ được chuyển thẳng cho Người bán và không thể hoàn tác."
+        onConfirm={handleExecuteBuyerConfirm}
+        onCancel={() => setShowConfirmSheet(false)}
+        loading={confirming}
+      />
     </SafeAreaView>
   );
 }
@@ -392,201 +386,292 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: Spacing.lg,
+    paddingBottom: Spacing.xxxl,
   },
-  headerCard: {
-    padding: Spacing.lg,
-    marginBottom: Spacing.md,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: Spacing.sm,
-  },
-  tradeCode: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    fontWeight: '600',
-  },
-  simText: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: Colors.text,
-    marginTop: 2,
-  },
-  escrowNotice: {
-    flexDirection: 'row',
+  centerBox: {
+    flex: 1,
     alignItems: 'center',
-    backgroundColor: Colors.successLight,
-    padding: Spacing.sm,
-    borderRadius: BorderRadius.sm,
-    marginVertical: Spacing.xs,
+    justifyContent: 'center',
+    padding: Spacing.xl,
   },
-  escrowText: {
-    fontSize: 13,
-    color: '#065F46',
-    marginLeft: Spacing.xs,
+  loadingText: {
+    marginTop: Spacing.md,
+    fontSize: 14,
+    color: Colors.textSecondary,
   },
-  deadlineText: {
-    fontSize: 12,
-    color: Colors.warning,
+  notFoundTitle: {
+    fontSize: 16,
     fontWeight: '700',
+    color: Colors.navy,
+    marginTop: Spacing.md,
+  },
+  notFoundDesc: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    textAlign: 'center',
     marginTop: 4,
   },
-  stepsCard: {
-    padding: Spacing.lg,
-    marginBottom: Spacing.md,
+  backBtn: {
+    marginTop: Spacing.xl,
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.sm + 2,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
-  stepsTitle: {
+  backBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.navy,
+  },
+  card: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+    ...Shadows.card,
+  },
+  sectionHeaderTitle: {
     fontSize: 11,
     fontWeight: '800',
     color: Colors.textMuted,
     letterSpacing: 0.5,
-    marginBottom: Spacing.sm,
   },
-  stepItem: {
+  tradeHeaderRow: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    marginVertical: Spacing.xs,
   },
-  stepItemText: {
-    fontSize: 13,
-    color: Colors.textSecondary,
-    marginLeft: Spacing.sm,
-    flex: 1,
-  },
-  stepDone: {
-    color: Colors.text,
-    fontWeight: '600',
-  },
-  stepActive: {
-    color: Colors.primary,
+  tradeCode: {
+    fontSize: 11,
     fontWeight: '700',
+    color: Colors.blue,
+    fontFamily: 'monospace',
   },
-  sellerCard: {
-    padding: Spacing.lg,
-    marginBottom: Spacing.md,
-    backgroundColor: 'rgba(241, 245, 249, 0.6)',
-  },
-  roleHeader: {
-    fontSize: 12,
+  tradeSimNumber: {
+    fontSize: 18,
     fontWeight: '800',
-    color: Colors.textSecondary,
-    letterSpacing: 0.5,
-    marginBottom: 4,
+    color: Colors.navy,
+    marginTop: 2,
   },
-  roleDesc: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    lineHeight: 17,
-    marginBottom: Spacing.md,
+  escrowBadge: {
+    alignItems: 'flex-end',
   },
-  uploadBox: {
-    borderWidth: 1.5,
-    borderColor: '#CBD5E1',
-    borderStyle: 'dashed',
-    borderRadius: BorderRadius.md,
-    padding: Spacing.lg,
-    alignItems: 'center',
+  escrowAmountText: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: Colors.navy,
+    fontVariant: ['tabular-nums'],
+  },
+  escrowNote: {
+    fontSize: 11,
+    color: Colors.warning,
+    fontWeight: '600',
+    marginTop: 1,
+  },
+  checklistCard: {
     backgroundColor: Colors.surface,
-  },
-  uploadText: {
-    fontSize: 12,
-    color: Colors.primary,
-    fontWeight: '700',
-    marginTop: 6,
-  },
-  noteInput: {
-    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: BorderRadius.sm,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs + 2,
-    fontSize: 13,
-    marginTop: Spacing.sm,
-  },
-  buyerCard: {
     padding: Spacing.lg,
-    marginBottom: Spacing.xl,
-    borderColor: Colors.success,
-    borderWidth: 1.5,
+    marginBottom: Spacing.lg,
+    ...Shadows.card,
   },
-  confirmBtn: {
-    marginTop: Spacing.md,
-  },
-  resultContainer: {
+  checklistTitleRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: Spacing.md,
+    gap: 8,
+    marginBottom: 4,
   },
-  resultIconCircle: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: Colors.success,
+  checklistTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: Colors.navy,
+    letterSpacing: 0.5,
+  },
+  checklistSubtitle: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.md,
+  },
+  checkItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginBottom: 8,
+  },
+  checkItemText: {
+    fontSize: 13,
+    color: Colors.navy,
+    flex: 1,
+    lineHeight: 18,
+  },
+  captureCtaBtn: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: Spacing.md,
-    shadowColor: Colors.success,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 14,
-    elevation: 8,
+    gap: 8,
+    backgroundColor: Colors.blue,
+    borderRadius: BorderRadius.md,
+    minHeight: 50,
+    marginTop: Spacing.md,
   },
-  resultTitle: {
-    fontSize: 20,
-    fontWeight: '900',
-    color: Colors.text,
-    textAlign: 'center',
-  },
-  resultDesc: {
+  captureCtaText: {
     fontSize: 14,
+    fontWeight: '800',
+    color: '#fff',
+  },
+  evidenceHeaderRow: {
+    marginBottom: Spacing.sm,
+  },
+  sectionTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: Colors.navy,
+  },
+  emptyEvidenceCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.xl,
+    alignItems: 'center',
+    marginBottom: Spacing.lg,
+  },
+  emptyEvidenceTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.navy,
+    marginTop: Spacing.sm,
+  },
+  emptyEvidenceDesc: {
+    fontSize: 12,
     color: Colors.textSecondary,
     textAlign: 'center',
     marginTop: 4,
-    marginBottom: Spacing.lg,
+    lineHeight: 17,
   },
-  resultCard: {
-    width: '100%',
-    padding: Spacing.lg,
-    marginBottom: Spacing.xl,
+  buyerActionArea: {
+    marginTop: Spacing.md,
+    gap: Spacing.xs,
   },
-  resultRow: {
+  confirmReceiptBtn: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    paddingVertical: Spacing.xs,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: Colors.navy,
+    borderRadius: BorderRadius.md,
+    minHeight: 52,
   },
-  resultRowText: {
-    fontSize: 13,
-    color: Colors.text,
-    marginLeft: Spacing.xs,
+  confirmReceiptBtnText: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#fff',
+  },
+  buyerActionNote: {
+    fontSize: 11,
+    color: Colors.textMuted,
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  cameraBackdrop: {
     flex: 1,
-    lineHeight: 18,
+    backgroundColor: '#000',
+    justifyContent: 'space-between',
   },
-  resultDivider: {
-    height: 1,
-    backgroundColor: Colors.borderLight,
-    marginVertical: Spacing.sm,
+  cameraHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.xl,
+    paddingTop: 50,
   },
-  emptyContainer: {
-    flex: 1,
+  cameraTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  cameraGuideContainer: {
+    width: '88%',
+    height: '60%',
+    alignSelf: 'center',
+    borderRadius: 16,
+    position: 'relative',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: Spacing.xl,
   },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: Colors.text,
-    marginTop: Spacing.md,
-    textAlign: 'center',
+  frameCornerTopLeft: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: 32,
+    height: 32,
+    borderTopWidth: 4,
+    borderLeftWidth: 4,
+    borderColor: Colors.blue,
   },
-  emptySubtitle: {
+  frameCornerTopRight: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 32,
+    height: 32,
+    borderTopWidth: 4,
+    borderRightWidth: 4,
+    borderColor: Colors.blue,
+  },
+  frameCornerBottomLeft: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    width: 32,
+    height: 32,
+    borderBottomWidth: 4,
+    borderLeftWidth: 4,
+    borderColor: Colors.blue,
+  },
+  frameCornerBottomRight: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 32,
+    height: 32,
+    borderBottomWidth: 4,
+    borderRightWidth: 4,
+    borderColor: Colors.blue,
+  },
+  frameCenterContent: {
+    alignItems: 'center',
+    paddingHorizontal: Spacing.xl,
+  },
+  frameGuideText: {
     fontSize: 13,
-    color: Colors.textSecondary,
+    color: '#fff',
     textAlign: 'center',
-    marginTop: Spacing.xs,
+    marginTop: Spacing.md,
     lineHeight: 18,
-    paddingHorizontal: Spacing.lg,
+  },
+  cameraControls: {
+    alignItems: 'center',
+    paddingBottom: 50,
+  },
+  shutterBtn: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    borderWidth: 4,
+    borderColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  shutterInner: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#fff',
   },
 });

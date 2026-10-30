@@ -46,6 +46,7 @@ export default function RootLayout() {
           <Stack.Screen name="kyc/camera-back" options={{ headerShown: false }} />
           <Stack.Screen name="kyc/camera-selfie" options={{ headerShown: false }} />
           <Stack.Screen name="kyc/result" options={{ headerShown: false }} />
+          <Stack.Screen name="kyc/nfc" options={{ headerShown: false }} />
           <Stack.Screen name="sims/verify" options={{ headerShown: false }} />
           <Stack.Screen name="sims/register" options={{ headerShown: false }} />
           <Stack.Screen name="contract/[tradeId]" options={{ headerShown: false }} />

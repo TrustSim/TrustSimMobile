@@ -5,19 +5,19 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button } from '../components/Button';
-import { Card } from '../components/Card';
 import { Header } from '../components/Header';
-import { BottomNavBar } from '../components/BottomNavBar';
-import { Input } from '../components/Input';
+import { MoneyField } from '../components/trust/MoneyField';
+import { ReceiptScreen } from '../components/trust/ReceiptScreen';
+import type { ReceiptData } from '../components/trust/ReceiptScreen';
 import { VietQrPaymentView } from '../components/VietQrPaymentView';
-import { BorderRadius, Colors, Spacing } from '../constants/theme';
+import { BorderRadius, Colors, Shadows, Spacing } from '../constants/theme';
 import { useAuth } from '../context/AuthContext';
 import { extractErrorMessage } from '../services/apiClient';
 import { walletService } from '../services/walletService';
@@ -28,24 +28,23 @@ export default function DepositScreen() {
   const { wallet, refreshWallet } = useAuth();
 
   const [amount, setAmount] = useState<string>('500000');
-  const [note, setNote] = useState<string>('Nạp tiền vào tài khoản');
+  const [note, setNote] = useState<string>('Nạp tiền vào ví TrustSim');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Active VietQR Deposit response (triggers SCR-06 state)
+  // States: 'input' | 'qr' | 'receipt'
   const [depositResult, setDepositResult] = useState<DepositResponseDto | null>(null);
+  const [receiptData, setReceiptData] = useState<ReceiptData | null>(null);
 
   const quickAmounts = [100000, 200000, 500000, 1000000, 2000000, 5000000];
 
-  const formatVnd = (val?: number) => {
-    if (typeof val !== 'number') return '0 đ';
-    return val.toLocaleString('vi-VN') + ' đ';
-  };
+  const availableBal = wallet?.availableBalance ?? 0;
+  const lockedBal = wallet?.lockedBalance ?? 0;
 
   const handleCreateVietQr = async () => {
     const numAmount = parseInt(amount.replace(/[^0-9]/g, ''), 10);
     if (isNaN(numAmount) || numAmount < 10000) {
-      setError('Số tiền nạp tối thiểu là 10.000 VNĐ.');
+      setError('Số tiền nạp tối thiểu là 10.000 ₫.');
       return;
     }
 
@@ -69,12 +68,48 @@ export default function DepositScreen() {
     }
   };
 
+  const handlePaymentSuccess = async () => {
+    await refreshWallet();
+    const numAmount = depositResult?.amount || parseInt(amount.replace(/[^0-9]/g, ''), 10) || 0;
+    setReceiptData({
+      type: 'success',
+      title: 'Nạp Tiền Thành Công',
+      amountDisplay: `+ ${numAmount.toLocaleString('vi-VN')} ₫`,
+      description: 'Số dư khả dụng trong ví của bạn đã được cập nhật thành công.',
+      details: [
+        { label: 'Phương thức', value: 'VietQR Napas 24/7' },
+        { label: 'Nội dung', value: depositResult?.transferContent || note },
+        { label: 'Trạng thái', value: 'Đã hạch toán' },
+      ],
+      referenceId: depositResult?.transactionCode,
+      timestamp: new Date().toISOString(),
+      nextSteps: [
+        'Số tiền khả dụng ngay để đặt cọc đấu giá SIM.',
+        'Bạn có thể kiểm tra biến động số dư trong phần Sao kê ví.',
+      ],
+    });
+  };
+
+  // Receipt screen shown upon payment completion
+  if (receiptData) {
+    return (
+      <ReceiptScreen
+        data={receiptData}
+        onDone={() => {
+          router.replace('/(tabs)/wallet');
+        }}
+        doneLabel="Về Ví Tiền"
+      />
+    );
+  }
+
+  const numAmount = parseInt(amount.replace(/[^0-9]/g, ''), 10) || 0;
+
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
       <Header
-        title={depositResult ? 'Thanh Toán Chuyển Khoản QR' : 'Nạp Tiền Vào Ví'}
+        title={depositResult ? 'Thanh Toán VietQR' : 'Nạp Tiền Vào Ví'}
         showBack
-        showHome
         onBack={() => {
           if (depositResult) {
             setDepositResult(null);
@@ -88,15 +123,15 @@ export default function DepositScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.keyboardView}
       >
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
           {depositResult ? (
             /* Live VietQR Payment Screen */
             <VietQrPaymentView
               depositData={depositResult}
-              onSuccess={async () => {
-                await refreshWallet();
-                router.back();
-              }}
+              onSuccess={handlePaymentSuccess}
               onClose={async () => {
                 await refreshWallet();
                 router.back();
@@ -105,91 +140,105 @@ export default function DepositScreen() {
           ) : (
             /* Deposit Form */
             <View>
-              {/* Current Balance Overview */}
-              <Card style={styles.balanceCard}>
-                <Text style={styles.balanceLabel}>Số dư ví hiện tại:</Text>
-                <Text style={styles.balanceAmount}>{formatVnd(wallet?.availableBalance)}</Text>
-              </Card>
+              {/* Separate Balances */}
+              <MoneyField
+                rows={[
+                  { label: 'Số dư khả dụng hiện tại', amount: availableBal, color: Colors.navy },
+                  { label: 'Đang giữ cọc đấu giá', amount: lockedBal, color: Colors.warning, note: 'Tạm khóa an toàn' },
+                ]}
+                style={{ marginBottom: Spacing.lg }}
+              />
 
-              {/* Deposit Input Form */}
-              <Card style={styles.formCard}>
-                {error && (
-                  <View style={styles.errorAlert}>
-                    <Ionicons name="alert-circle" size={18} color={Colors.danger} />
-                    <Text style={styles.errorAlertText}>{error}</Text>
+              {/* Payment Method Selector */}
+              <View style={styles.methodCard}>
+                <View style={styles.methodHeader}>
+                  <View style={styles.methodIconBox}>
+                    <MaterialCommunityIcons name="qrcode-scan" size={24} color={Colors.blue} />
                   </View>
-                )}
+                  <View style={{ flex: 1 }}>
+                    <View style={styles.methodTitleRow}>
+                      <Text style={styles.methodTitle}>Chuyển khoản VietQR 24/7</Text>
+                      <View style={styles.badgeAuto}>
+                        <Text style={styles.badgeAutoText}>Khớp lệnh tự động</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.methodDesc}>Quét mã QR từ mọi ứng dụng ngân hàng và ví điện tử</Text>
+                  </View>
+                </View>
+              </View>
 
-                <Input
-                  label="Số tiền muốn nạp (VNĐ)"
-                  placeholder="Ví dụ: 500000"
-                  value={amount}
-                  onChangeText={(val) => setAmount(val.replace(/[^0-9]/g, ''))}
-                  keyboardType="number-pad"
-                  hint="Tối thiểu: 10.000 VNĐ • Miễn phí giao dịch"
-                  leftIcon={<Ionicons name="cash-outline" size={18} color={Colors.primary} />}
-                />
+              {/* Amount Input */}
+              <View style={styles.inputCard}>
+                <Text style={styles.inputLabel}>SỐ TIỀN CẦN NẠP (₫)</Text>
 
-                {/* Quick Amount Chips */}
-                <Text style={styles.quickLabel}>CHỌN NHANH SỐ TIỀN:</Text>
+                <View style={styles.amountInputRow}>
+                  <TextInput
+                    style={styles.amountInput}
+                    value={numAmount > 0 ? numAmount.toLocaleString('vi-VN') : ''}
+                    onChangeText={(val) => setAmount(val.replace(/[^0-9]/g, ''))}
+                    placeholder="0"
+                    placeholderTextColor={Colors.textMuted}
+                    keyboardType="number-pad"
+                  />
+                  <Text style={styles.inputCurrency}>₫</Text>
+                </View>
+
+                {error ? (
+                  <View style={styles.errorBox}>
+                    <MaterialCommunityIcons name="alert-circle-outline" size={14} color={Colors.danger} />
+                    <Text style={styles.errorText}>{error}</Text>
+                  </View>
+                ) : null}
+
+                {/* Quick Select Buttons */}
+                <Text style={styles.quickLabel}>Chọn nhanh số tiền:</Text>
                 <View style={styles.quickGrid}>
-                  {quickAmounts.map((q) => (
-                    <TouchableOpacity
-                      key={q}
-                      style={[
-                        styles.quickChip,
-                        amount === q.toString() && styles.quickChipSelected,
-                      ]}
-                      onPress={() => setAmount(q.toString())}
-                    >
-                      <Text
-                        style={[
-                          styles.quickChipText,
-                          amount === q.toString() && styles.quickChipTextSelected,
-                        ]}
+                  {quickAmounts.map((q) => {
+                    const isSelected = numAmount === q;
+                    return (
+                      <TouchableOpacity
+                        key={q}
+                        style={[styles.quickBtn, isSelected && styles.quickBtnSelected]}
+                        onPress={() => setAmount(q.toString())}
+                        activeOpacity={0.8}
                       >
-                        {formatVnd(q)}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
+                        <Text style={[styles.quickBtnText, isSelected && styles.quickBtnTextSelected]}>
+                          {(q / 1000).toLocaleString('vi-VN')}k
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
+              </View>
 
-                {/* Payment Method Badge */}
-                <View style={styles.methodBox}>
-                  <View style={styles.methodRadio}>
-                    <View style={styles.methodRadioInner} />
-                  </View>
-                  <View style={{ flex: 1, marginLeft: Spacing.sm }}>
-                    <Text style={styles.methodTitle}>Chuyển khoản ngân hàng qua mã QR</Text>
-                    <Text style={styles.methodDesc}>
-                      Chuyển khoản nhanh 24/7 • Tiền vào ví tự động ngay lập tức
-                    </Text>
-                  </View>
-                </View>
+              {/* Security Banner */}
+              <View style={styles.securityBox}>
+                <MaterialCommunityIcons name="shield-check-outline" size={18} color={Colors.blue} />
+                <Text style={styles.securityText}>
+                  Miễn phí giao dịch. Tiền vào tài khoản ví trong 10–30 giây sau khi quét mã thành công.
+                </Text>
+              </View>
 
-                <Input
-                  label="Ghi chú nạp tiền (Tùy chọn)"
-                  placeholder="Ghi chú thêm..."
-                  value={note}
-                  onChangeText={setNote}
-                  leftIcon={<Ionicons name="create-outline" size={18} color={Colors.textSecondary} />}
-                />
-
-                <Button
-                  title="TẠO MÃ QR NẠP TIỀN"
-                  variant="primary"
-                  size="lg"
-                  loading={loading}
-                  icon={<Ionicons name="qr-code" size={18} color={Colors.textInverse} />}
-                  onPress={handleCreateVietQr}
-                  style={styles.createBtn}
-                />
-              </Card>
+              {/* Action Button */}
+              <TouchableOpacity
+                style={[styles.submitBtn, (loading || numAmount < 10000) && styles.submitBtnDisabled]}
+                onPress={handleCreateVietQr}
+                disabled={loading || numAmount < 10000}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel="Tạo mã VietQR nạp tiền"
+              >
+                <MaterialCommunityIcons name="qrcode" size={20} color="#fff" />
+                <Text style={styles.submitBtnText}>
+                  {loading
+                    ? 'Đang tạo mã...'
+                    : `Tạo mã QR nạp ${numAmount > 0 ? numAmount.toLocaleString('vi-VN') + ' ₫' : ''}`}
+                </Text>
+              </TouchableOpacity>
             </View>
           )}
         </ScrollView>
       </KeyboardAvoidingView>
-      <BottomNavBar activeTab="wallet" />
     </SafeAreaView>
   );
 }
@@ -204,112 +253,172 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: Spacing.lg,
+    paddingBottom: Spacing.xxxl,
   },
-  balanceCard: {
-    backgroundColor: 'rgba(30, 58, 138, 0.06)',
-    borderColor: 'rgba(30, 58, 138, 0.15)',
-    borderWidth: 1,
+  methodCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1.5,
+    borderColor: Colors.blue,
     padding: Spacing.md,
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.lg,
+    ...Shadows.card,
   },
-  balanceLabel: {
-    fontSize: 12,
-    color: Colors.textSecondary,
+  methodHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.md,
   },
-  balanceAmount: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: Colors.primary,
-    marginTop: 2,
+  methodIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: 'rgba(22, 102, 197, 0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  formCard: {
-    padding: Spacing.xl,
-  },
-  errorAlert: {
+  methodTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.dangerLight,
-    padding: Spacing.sm + 2,
-    borderRadius: BorderRadius.md,
-    marginBottom: Spacing.md,
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 4,
   },
-  errorAlertText: {
-    flex: 1,
-    color: Colors.danger,
-    fontSize: 13,
-    marginLeft: Spacing.xs,
-    fontWeight: '500',
+  methodTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.navy,
   },
-  quickLabel: {
+  badgeAuto: {
+    backgroundColor: Colors.successLight,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  badgeAutoText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: Colors.success,
+  },
+  methodDesc: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginTop: 4,
+    lineHeight: 16,
+  },
+  inputCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.lg,
+    marginBottom: Spacing.lg,
+    ...Shadows.card,
+  },
+  inputLabel: {
     fontSize: 11,
-    fontWeight: '800',
+    fontWeight: '700',
     color: Colors.textSecondary,
     letterSpacing: 0.5,
-    marginTop: Spacing.sm,
     marginBottom: Spacing.xs,
+  },
+  amountInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderBottomWidth: 2,
+    borderBottomColor: Colors.blue,
+    paddingBottom: Spacing.xs,
+    marginBottom: Spacing.md,
+  },
+  amountInput: {
+    flex: 1,
+    fontSize: 28,
+    fontWeight: '800',
+    color: Colors.navy,
+    fontVariant: ['tabular-nums'],
+    padding: 0,
+  },
+  inputCurrency: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+  },
+  errorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: Colors.dangerLight,
+    borderRadius: 6,
+    padding: Spacing.xs + 2,
+    marginBottom: Spacing.sm,
+  },
+  errorText: {
+    fontSize: 12,
+    color: Colors.danger,
+    fontWeight: '600',
+  },
+  quickLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+    marginBottom: Spacing.sm,
   },
   quickGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: Spacing.xs,
-    marginBottom: Spacing.md,
+    gap: Spacing.sm,
   },
-  quickChip: {
+  quickBtn: {
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs + 2,
+    paddingVertical: Spacing.xs + 4,
     borderRadius: BorderRadius.sm,
-    backgroundColor: Colors.surfaceAlt,
     borderWidth: 1,
     borderColor: Colors.border,
-  },
-  quickChipSelected: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
-  },
-  quickChipText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.text,
-  },
-  quickChipTextSelected: {
-    color: Colors.textInverse,
-  },
-  methodBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(16, 185, 129, 0.08)',
-    borderWidth: 1.5,
-    borderColor: Colors.success,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.md,
-    marginVertical: Spacing.md,
-  },
-  methodRadio: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: Colors.success,
+    backgroundColor: Colors.surfaceAlt,
+    minHeight: 38,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  methodRadioInner: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: Colors.success,
+  quickBtnSelected: {
+    borderColor: Colors.blue,
+    backgroundColor: 'rgba(22, 102, 197, 0.08)',
   },
-  methodTitle: {
+  quickBtnText: {
     fontSize: 13,
     fontWeight: '700',
-    color: Colors.text,
+    color: Colors.navy,
+    fontVariant: ['tabular-nums'],
   },
-  methodDesc: {
-    fontSize: 11,
+  quickBtnTextSelected: {
+    color: Colors.blue,
+  },
+  securityBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.xs + 2,
+    marginBottom: Spacing.xl,
+  },
+  securityText: {
+    fontSize: 12,
     color: Colors.textSecondary,
-    marginTop: 2,
+    flex: 1,
+    lineHeight: 17,
   },
-  createBtn: {
-    marginTop: Spacing.md,
+  submitBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: Colors.blue,
+    borderRadius: BorderRadius.md,
+    minHeight: 52,
+  },
+  submitBtnDisabled: {
+    opacity: 0.5,
+  },
+  submitBtnText: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#fff',
   },
 });

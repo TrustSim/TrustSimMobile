@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import {
   Alert,
+  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -10,7 +11,7 @@ import {
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
@@ -50,11 +51,9 @@ export default function LoginScreen() {
   const handleBiometricLogin = async () => {
     const res = await BiometricService.authenticate('Đăng nhập nhanh bằng vân tay hoặc FaceID');
     if (res.success) {
-      // If biometrics passed and stored credentials exist
-      Alert.alert('Sinh trắc học thành công', 'Xác thực sinh trắc học thiết bị thành công!');
+      Alert.alert('Sinh trắc học thành công', 'Xác thực sinh trắc học trên thiết bị thành công!');
     }
   };
-
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -62,15 +61,16 @@ export default function LoginScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.keyboardView}
       >
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          {/* Logo Brand Header */}
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          {/* Logo Brand Header từ frontend */}
           <View style={styles.brandContainer}>
-            <View style={styles.logoBadge}>
-              <Ionicons name="shield-checkmark" size={38} color={Colors.textInverse} />
-            </View>
-            <Text style={styles.brandTitle}>TrustSim</Text>
+            <Image
+              source={require('../../assets/images/logo/TrustSim-Logo.png')}
+              style={styles.brandLogo}
+              resizeMode="contain"
+            />
             <Text style={styles.brandSubtitle}>
-              Sàn Giao Dịch & Đấu Giá SIM Số Đẹp Uy Tín
+              Nền Tảng Giao Dịch & Chuyển Nhượng SIM Có Kiểm Chứng
             </Text>
           </View>
 
@@ -80,7 +80,7 @@ export default function LoginScreen() {
 
             {error && (
               <View style={styles.errorAlert}>
-                <Ionicons name="alert-circle" size={18} color={Colors.danger} />
+                <MaterialCommunityIcons name="alert-circle" size={18} color={Colors.danger} />
                 <Text style={styles.errorAlertText}>{error}</Text>
               </View>
             )}
@@ -91,7 +91,7 @@ export default function LoginScreen() {
               value={userNameOrEmail}
               onChangeText={setUserNameOrEmail}
               autoCapitalize="none"
-              leftIcon={<Ionicons name="person-outline" size={18} color={Colors.textSecondary} />}
+              leftIcon={<MaterialCommunityIcons name="account-outline" size={18} color={Colors.textSecondary} />}
             />
 
             <Input
@@ -100,7 +100,7 @@ export default function LoginScreen() {
               value={password}
               onChangeText={setPassword}
               isPassword
-              leftIcon={<Ionicons name="lock-closed-outline" size={18} color={Colors.textSecondary} />}
+              leftIcon={<MaterialCommunityIcons name="lock-outline" size={18} color={Colors.textSecondary} />}
             />
 
             <Button
@@ -109,27 +109,28 @@ export default function LoginScreen() {
               size="lg"
               loading={loading}
               onPress={handleLogin}
-              style={styles.submitBtn}
+              style={styles.loginBtn}
             />
 
-            {/* Biometric Icon button */}
-            <TouchableOpacity
-              style={styles.bioBtn}
-              onPress={handleBiometricLogin}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="finger-print" size={24} color={Colors.primary} />
-              <Text style={styles.bioBtnText}>Đăng nhập sinh trắc học (FaceID / Vân tay)</Text>
-            </TouchableOpacity>
-          </Card>
+            {/* Quick Biometrics Login */}
+            {Platform.OS !== 'web' && (
+              <TouchableOpacity
+                style={styles.biometricBtn}
+                onPress={handleBiometricLogin}
+                activeOpacity={0.7}
+              >
+                <MaterialCommunityIcons name="fingerprint" size={24} color={Colors.blue} />
+                <Text style={styles.biometricBtnText}>Đăng nhập nhanh bằng Sinh trắc học</Text>
+              </TouchableOpacity>
+            )}
 
-          {/* Footer Register Link */}
-          <View style={styles.footer}>
-            <Text style={styles.footerText}>Chưa có tài khoản TrustSim?</Text>
-            <TouchableOpacity onPress={() => router.push('/register')}>
-              <Text style={styles.registerLink}>Đăng Ký Ngay</Text>
-            </TouchableOpacity>
-          </View>
+            <View style={styles.registerPrompt}>
+              <Text style={styles.registerPromptText}>Chưa có tài khoản TrustSim? </Text>
+              <TouchableOpacity onPress={() => router.push('/register')}>
+                <Text style={styles.registerLinkText}>Đăng ký ngay</Text>
+              </TouchableOpacity>
+            </View>
+          </Card>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -145,47 +146,33 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    flexGrow: 1,
+    padding: Spacing.xl,
     justifyContent: 'center',
-    padding: Spacing.lg,
+    flexGrow: 1,
   },
   brandContainer: {
     alignItems: 'center',
     marginBottom: Spacing.xl,
   },
-  logoBadge: {
-    width: 72,
-    height: 72,
-    borderRadius: 20,
-    backgroundColor: Colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: Spacing.sm,
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  brandTitle: {
-    fontSize: 28,
-    fontWeight: '900',
-    color: Colors.primary,
-    letterSpacing: 0.5,
+  brandLogo: {
+    width: 220,
+    height: 64,
+    marginBottom: Spacing.xs,
   },
   brandSubtitle: {
     fontSize: 13,
     color: Colors.textSecondary,
     textAlign: 'center',
-    marginTop: 4,
+    marginTop: Spacing.xs,
   },
   formCard: {
     padding: Spacing.xl,
+    borderRadius: BorderRadius.lg,
   },
   formTitle: {
     fontSize: 20,
     fontWeight: '800',
-    color: Colors.text,
+    color: Colors.navy,
     marginBottom: Spacing.lg,
     textAlign: 'center',
   },
@@ -193,47 +180,45 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.dangerLight,
-    padding: Spacing.sm + 2,
-    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.sm,
     marginBottom: Spacing.md,
+    gap: Spacing.xs,
   },
   errorAlertText: {
-    flex: 1,
+    fontSize: 13,
     color: Colors.danger,
-    fontSize: 13,
-    marginLeft: Spacing.xs,
-    fontWeight: '500',
+    flex: 1,
   },
-  submitBtn: {
-    marginTop: Spacing.md,
+  loginBtn: {
+    marginTop: Spacing.sm,
   },
-  bioBtn: {
+  biometricBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: Spacing.lg,
-    paddingVertical: Spacing.xs,
+    paddingVertical: Spacing.md,
+    marginTop: Spacing.sm,
+    gap: Spacing.xs,
   },
-  bioBtnText: {
-    fontSize: 13,
+  biometricBtnText: {
+    fontSize: 14,
+    color: Colors.blue,
     fontWeight: '600',
-    color: Colors.primary,
-    marginLeft: Spacing.xs,
   },
-  footer: {
+  registerPrompt: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: Spacing.xl,
+    marginTop: Spacing.lg,
   },
-  footerText: {
+  registerPromptText: {
     fontSize: 14,
     color: Colors.textSecondary,
   },
-  registerLink: {
+  registerLinkText: {
     fontSize: 14,
-    fontWeight: '800',
-    color: Colors.accent,
-    marginLeft: 6,
+    fontWeight: '700',
+    color: Colors.blue,
   },
 });

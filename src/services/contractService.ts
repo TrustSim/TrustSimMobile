@@ -6,9 +6,19 @@ import {
   ContractOtpSendResultDto,
   ContractPreviewDto,
   ContractSignResultDto,
+  PagedResult,
+  TradeTransactionDto,
 } from '../types';
 
 export const contractService = {
+  // Get current user's trade transactions / contracts
+  async getMyContracts(filter?: { pageIndex?: number; pageSize?: number }): Promise<ApiResponse<PagedResult<TradeTransactionDto>>> {
+    const res = await apiClient.get<ApiResponse<PagedResult<TradeTransactionDto>>>('/tradetransactions', {
+      params: filter,
+    });
+    return res.data;
+  },
+
   // Preview 3-party contract content and signature status
   async preview(tradeId: string): Promise<ApiResponse<ContractPreviewDto>> {
     const res = await apiClient.get<ApiResponse<ContractPreviewDto>>(`/contracts/${tradeId}/preview`);

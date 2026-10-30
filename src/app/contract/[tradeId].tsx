@@ -4,27 +4,25 @@ import {
   Alert,
   Linking,
   Modal,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
+  TouchableOpacity,
   View,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Badge } from '../../components/Badge';
 import { BiometricPromptModal } from '../../components/BiometricPromptModal';
-import { Button } from '../../components/Button';
-import { Card } from '../../components/Card';
 import { Header } from '../../components/Header';
-import { BottomNavBar } from '../../components/BottomNavBar';
 import { SignaturePadModal } from '../../components/SignaturePadModal';
-import { BorderRadius, Colors, Spacing } from '../../constants/theme';
+import { ContractTimeline } from '../../components/trust/ContractTimeline';
+import { VerificationStatusBadge } from '../../components/trust/VerificationStatusBadge';
+import { BorderRadius, Colors, Shadows, Spacing } from '../../constants/theme';
 import { useAuth } from '../../context/AuthContext';
 import { contractService } from '../../services/contractService';
-import { ContractIntegrityResultDto, ContractPreviewDto } from '../../types';
+import { ContractPreviewDto } from '../../types';
 
 export default function ContractPreviewScreen() {
   const router = useRouter();
@@ -45,9 +43,8 @@ export default function ContractPreviewScreen() {
   const [showSignaturePad, setShowSignaturePad] = useState(false);
   const [showBiometrics, setShowBiometrics] = useState(false);
 
-  // Integrity Check result modal
-  const [integrityResult, setIntegrityResult] = useState<ContractIntegrityResultDto | null>(null);
-  const [checkingIntegrity, setCheckingIntegrity] = useState(false);
+  // Modal xem toàn bộ điều khoản văn bản
+  const [showFullTermsModal, setShowFullTermsModal] = useState(false);
 
   const fetchContract = useCallback(async () => {
     if (!tradeId) {
@@ -85,7 +82,7 @@ export default function ContractPreviewScreen() {
 
   const handleConfirmSign = async (authMethod: 'OTP' | 'BIOMETRIC' = 'OTP') => {
     if (!otpCode || otpCode.length < 6) {
-      setOtpError('Vui lòng nhập đủ 6 chữ số mã OTP nhận qua Email.');
+      setOtpError('Vui lòng nhập đủ 6 chữ số mã xác thực nhận qua Email.');
       return;
     }
 
@@ -104,11 +101,11 @@ export default function ContractPreviewScreen() {
 
       if (res.success) {
         Alert.alert(
-          'Ký Hợp Đồng Thành Công!',
-          'Hợp đồng đã được cả 2 bên ký xác nhận thành công và có đầy đủ hiệu lực pháp lý.',
+          'Ký Hợp Đồng Thành Công',
+          'Hợp đồng đã được ký xác nhận điện tử hợp pháp giữa các bên.',
           [
             {
-              text: 'Xem Tiến Trình Bàn Giao',
+              text: 'Chuyển Đến Bằng Chứng Bàn Giao',
               onPress: () => router.push(`/handover/${contract?.tradeId || tradeId}`),
             },
           ]
@@ -128,35 +125,13 @@ export default function ContractPreviewScreen() {
     }
   };
 
-  const handleVerifyIntegrity = async () => {
-    setCheckingIntegrity(true);
-    try {
-      const sampleHash =
-        contract?.documentHash ||
-        '7f9fad1c0e5a83b275c4e976ec4e0626a23531b79f83526d11f71a938c0f5f84';
-      const res = await contractService.verifyIntegrity(
-        contract?.tradeId || tradeId || '',
-        sampleHash
-      );
-      if (res.success && res.data) {
-        setIntegrityResult(res.data);
-      } else {
-        Alert.alert('Thông báo', 'Không thể xác thực tính toàn vẹn của hợp đồng vào lúc này.');
-      }
-    } catch {
-      Alert.alert('Thông báo', 'Không thể kết nối máy chủ để kiểm tra tính toàn vẹn.');
-    } finally {
-      setCheckingIntegrity(false);
-    }
-  };
-
   if (loading && !contract) {
     return (
       <SafeAreaView edges={['top']} style={styles.safeArea}>
-        <Header title="Hợp Đồng Chuyển Nhượng SIM" showBack onBack={() => router.back()} showHome />
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={{ marginTop: Spacing.md, color: Colors.textSecondary }}>Đang tải hợp đồng...</Text>
+        <Header title="Hợp Đồng Chuyển Nhượng" showBack onBack={() => router.back()} />
+        <View style={styles.centerBox}>
+          <ActivityIndicator size="large" color={Colors.blue} />
+          <Text style={styles.loadingText}>Đang tải hợp đồng...</Text>
         </View>
       </SafeAreaView>
     );
@@ -165,245 +140,293 @@ export default function ContractPreviewScreen() {
   if (!loading && !contract) {
     return (
       <SafeAreaView edges={['top']} style={styles.safeArea}>
-        <Header title="Hợp Đồng Chuyển Nhượng SIM" showBack onBack={() => router.back()} showHome />
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: Spacing.xl }}>
-          <Ionicons name="document-text-outline" size={60} color={Colors.border} />
-          <Text style={{ fontSize: 17, fontWeight: '700', color: Colors.text, marginTop: Spacing.md }}>
-            Không tìm thấy thông tin hợp đồng
-          </Text>
-          <Text style={{ fontSize: 13, color: Colors.textSecondary, textAlign: 'center', marginTop: 4 }}>
+        <Header title="Hợp Đồng Chuyển Nhượng" showBack onBack={() => router.back()} />
+        <View style={styles.centerBox}>
+          <MaterialCommunityIcons name="file-document-outline" size={56} color={Colors.textMuted} />
+          <Text style={styles.notFoundTitle}>Không tìm thấy thông tin hợp đồng</Text>
+          <Text style={styles.notFoundDesc}>
             Hợp đồng này không tồn tại hoặc bạn chưa có quyền truy cập.
           </Text>
-          <Button
-            title="Quay Lại"
-            variant="outline"
-            onPress={() => router.back()}
-            style={{ marginTop: Spacing.xl, minWidth: 140 }}
-          />
+          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+            <Text style={styles.backBtnText}>Quay Lại</Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
   }
 
+  const isFullySigned = contract?.contractStatus === 'FULLY_SIGNED';
+  const tradeStatus = isFullySigned ? 'PendingTransfer' : 'PendingContractSigning';
+
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
-      <Header title="Hợp Đồng Chuyển Nhượng SIM" showBack onBack={() => router.back()} showHome />
+      <Header title="Hợp Đồng Chuyển Nhượng" showBack onBack={() => router.back()} />
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Header Summary */}
-        <Card style={styles.summaryCard}>
-          <View style={styles.summaryTopRow}>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* Tiến trình thực hiện trực quan */}
+        <View style={styles.timelineCard}>
+          <Text style={styles.sectionSmallTitle}>TIẾN TRÌNH GIAO DỊCH</Text>
+          <ContractTimeline status={tradeStatus} style={{ marginTop: Spacing.sm }} />
+        </View>
+
+        {/* Thẻ tóm tắt thông tin hợp đồng gọn gàng */}
+        <View style={styles.summaryCard}>
+          <View style={styles.summaryHeader}>
             <View>
-              <Text style={styles.tradeCode}>{contract?.tradeTransactionCode || contract?.tradeCode || 'TRD-20261021-001'}</Text>
-              <Text style={styles.simNumber}>{contract?.simPhoneNumber || contract?.simNumber || '0909.999.999'}</Text>
+              <Text style={styles.tradeCode}>
+                MÃ GIAO DỊCH: #{contract?.tradeTransactionCode || contract?.tradeCode || 'TRD-20261021'}
+              </Text>
+              <Text style={styles.simNumber}>
+                {contract?.simPhoneNumber || contract?.simNumber || 'SIM Chuyển nhượng'}
+              </Text>
             </View>
-            <Badge
-              status={contract?.contractStatus || 'PENDING_BUYER_SIGNATURE'}
-              label={
-                contract?.contractStatus === 'FULLY_SIGNED'
-                  ? 'ĐÃ KÝ ĐỦ 2 BÊN'
-                  : 'CHỜ BÊN MUA KÝ'
-              }
+            <VerificationStatusBadge
+              status={isFullySigned ? 'verified' : 'pending'}
+              label={isFullySigned ? 'Đã ký đủ 2 bên' : 'Chờ bạn ký'}
             />
           </View>
 
-          <View style={styles.summaryDivider} />
+          <View style={styles.divider} />
 
+          {/* Chi tiết điều khoản tóm tắt */}
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Số tiền ký quỹ:</Text>
+            <Text style={styles.infoValueBold}>
+              {(contract?.escrowAmount ?? 0).toLocaleString('vi-VN')} ₫
+            </Text>
+          </View>
+
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Bảo vệ thanh toán:</Text>
+            <Text style={[styles.infoValue, { color: Colors.success }]}>
+              Giữ an toàn trong tài khoản ký quỹ
+            </Text>
+          </View>
+
+          <View style={styles.divider} />
+
+          {/* Các bên tham gia */}
           <View style={styles.partiesRow}>
-            {/* Seller */}
-            <View style={styles.partyBox}>
+            <View style={styles.partyCol}>
               <Text style={styles.partyRole}>BÊN BÁN (BÊN A)</Text>
-              <Text style={styles.partyName}>{contract?.sellerFullName || contract?.sellerName || 'Bên bán'}</Text>
+              <Text style={styles.partyName} numberOfLines={1}>
+                {contract?.sellerFullName || contract?.sellerName || 'Bên bán'}
+              </Text>
               <View style={styles.signedTag}>
-                <Ionicons name="checkmark-circle" size={14} color={Colors.success} />
-                <Text style={styles.signedTagText}>Đã ký</Text>
+                <MaterialCommunityIcons name="check-circle" size={14} color={Colors.success} />
+                <Text style={styles.signedTagText}>Đã ký điện tử</Text>
               </View>
             </View>
 
-            {/* Buyer */}
-            <View style={styles.partyBox}>
+            <View style={styles.partyDivider} />
+
+            <View style={styles.partyCol}>
               <Text style={styles.partyRole}>BÊN MUA (BÊN B)</Text>
-              <Text style={styles.partyName}>{contract?.buyerFullName || contract?.buyerName || 'Bên mua'}</Text>
+              <Text style={styles.partyName} numberOfLines={1}>
+                {contract?.buyerFullName || contract?.buyerName || 'Bên mua'}
+              </Text>
               {contract?.buyerSigned ? (
                 <View style={styles.signedTag}>
-                  <Ionicons name="checkmark-circle" size={14} color={Colors.success} />
-                  <Text style={styles.signedTagText}>Đã ký</Text>
+                  <MaterialCommunityIcons name="check-circle" size={14} color={Colors.success} />
+                  <Text style={styles.signedTagText}>Đã ký điện tử</Text>
                 </View>
               ) : (
                 <View style={[styles.signedTag, { backgroundColor: Colors.warningLight }]}>
-                  <Ionicons name="time-outline" size={14} color={Colors.warning} />
-                  <Text style={[styles.signedTagText, { color: '#9A3412' }]}>Chờ bạn ký</Text>
+                  <MaterialCommunityIcons name="clock-outline" size={14} color={Colors.warning} />
+                  <Text style={[styles.signedTagText, { color: Colors.warning }]}>Chờ bạn ký</Text>
                 </View>
               )}
             </View>
           </View>
-        </Card>
+        </View>
 
-        {/* Contract HTML Preview Card */}
-        <Card style={styles.paperCard}>
-          <View style={styles.paperHeader}>
-            <Ionicons name="document-text" size={20} color={Colors.primary} />
-            <Text style={styles.paperTitle}>NỘI DUNG VĂN BẢN HỢP ĐỒNG</Text>
-          </View>
+        {/* Nút xem điều khoản đầy đủ (khi người dùng muốn xem thì mới bấm) */}
+        <TouchableOpacity
+          style={styles.viewTermsBtn}
+          onPress={() => setShowFullTermsModal(true)}
+          activeOpacity={0.7}
+        >
+          <MaterialCommunityIcons name="file-eye-outline" size={18} color={Colors.blue} />
+          <Text style={styles.viewTermsText}>Xem toàn bộ điều khoản hợp đồng</Text>
+          <MaterialCommunityIcons name="chevron-right" size={18} color={Colors.blue} />
+        </TouchableOpacity>
 
-          <View style={styles.paperContent}>
-            <Text style={styles.paperText}>
-              {contract?.htmlContent.replace(/<[^>]+>/g, '').trim()}
-            </Text>
-          </View>
-        </Card>
-
-        {/* Handwritten Signature Preview if attached */}
+        {/* Chữ ký tay nếu đã đính kèm */}
         {handwrittenSig && (
-          <Card style={styles.sigPreviewCard}>
-            <View style={styles.sigPreviewHeader}>
-              <Ionicons name="pencil" size={16} color={Colors.primary} />
-              <Text style={styles.sigPreviewTitle}>Chữ ký tay điện tử của bạn:</Text>
+          <View style={styles.sigCard}>
+            <Text style={styles.sigTitle}>Chữ ký tay của bạn:</Text>
+            <View style={styles.sigPlaceholder}>
+              <MaterialCommunityIcons name="draw" size={16} color={Colors.blue} />
+              <Text style={styles.sigText}>Đã đính kèm chữ ký cá nhân</Text>
             </View>
-            <View style={styles.sigBox}>
-              <Text style={styles.sigPlaceholderText}>
-                ✍️ [Đã đính kèm chữ ký tay]
-              </Text>
-            </View>
-          </Card>
+          </View>
         )}
 
-        {/* Action Buttons */}
-        {!contract?.buyerSigned ? (
-          <View style={styles.signActionContainer}>
-            <Button
-              title="✍️ KÝ HỢP ĐỒNG BẰNG MÃ OTP"
-              variant="primary"
-              size="lg"
-              onPress={handleStartSign}
-              style={{ marginBottom: Spacing.sm }}
-            />
+        {/* Chứng nhận niêm phong pháp lý */}
+        {isFullySigned && (
+          <View style={styles.certCard}>
+            <MaterialCommunityIcons name="shield-check" size={24} color={Colors.success} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.certTitle}>Hợp đồng đã có hiệu lực pháp lý</Text>
+              <Text style={styles.certDesc}>
+                Văn bản đã được ký điện tử và niêm phong an toàn. Bên bán có trách nhiệm hoàn tất thủ tục bàn giao sang tên tại quầy nhà mạng.
+              </Text>
+            </View>
+          </View>
+        )}
 
-            <View style={styles.advancedSignRow}>
-              <Button
-                title="Vẽ chữ ký tay"
-                variant="outline"
-                size="sm"
-                icon={<Ionicons name="brush-outline" size={16} color={Colors.primary} />}
+        {/* Các nút hành động chính */}
+        {!contract?.buyerSigned ? (
+          <View style={styles.actionsContainer}>
+            <TouchableOpacity
+              style={styles.primaryActionBtn}
+              onPress={handleStartSign}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="Ký hợp đồng bằng mã xác thực Email OTP"
+            >
+              <MaterialCommunityIcons name="shield-key" size={20} color="#fff" />
+              <Text style={styles.primaryActionText}>Ký Hợp Đồng Bằng Mã Xác Thực</Text>
+            </TouchableOpacity>
+
+            <View style={styles.advancedRow}>
+              <TouchableOpacity
+                style={styles.advancedBtn}
                 onPress={() => setShowSignaturePad(true)}
-                style={{ flex: 1, marginRight: Spacing.xs }}
-              />
-              <Button
-                title="Vân Tay / FaceID"
-                variant="outline"
-                size="sm"
-                icon={<Ionicons name="finger-print-outline" size={16} color={Colors.primary} />}
+                activeOpacity={0.7}
+              >
+                <MaterialCommunityIcons name="draw" size={16} color={Colors.navy} />
+                <Text style={styles.advancedBtnText}>Vẽ chữ ký tay</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.advancedBtn}
                 onPress={() => setShowBiometrics(true)}
-                style={{ flex: 1 }}
-              />
+                activeOpacity={0.7}
+              >
+                <MaterialCommunityIcons name="fingerprint" size={16} color={Colors.navy} />
+                <Text style={styles.advancedBtnText}>Vân tay / FaceID</Text>
+              </TouchableOpacity>
             </View>
           </View>
         ) : (
-          <View style={styles.fullySignedActions}>
-            <Button
-              title="TIẾN TRÌNH BÀN GIAO SIM"
-              variant="primary"
-              size="lg"
+          <View style={styles.actionsContainer}>
+            {/* Nút chuyển tới màn bằng chứng bàn giao - Tên rõ ràng dễ hiểu */}
+            <TouchableOpacity
+              style={styles.primaryActionBtn}
               onPress={() => router.push(`/handover/${contract.tradeId}`)}
-              style={{ marginBottom: Spacing.sm }}
-            />
-            <Button
-              title="📄 TẢI HỢP ĐỒNG ĐIỆN TỬ (PDF)"
-              variant="outline"
-              size="md"
-              icon={<Ionicons name="download-outline" size={18} color={Colors.primary} />}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="Chụp và xem bằng chứng bàn giao SIM"
+            >
+              <MaterialCommunityIcons name="camera-document" size={20} color="#fff" />
+              <Text style={styles.primaryActionText}>Chụp & Xem Bằng Chứng Bàn Giao</Text>
+            </TouchableOpacity>
+
+            {/* Nút tải PDF về máy */}
+            <TouchableOpacity
+              style={styles.secondaryActionBtn}
               onPress={() => {
                 const pdfUrl = contract.documentPdfUrl || contract.pdfDocumentUrl;
                 if (pdfUrl) {
                   Linking.openURL(pdfUrl);
                 } else {
-                  Alert.alert('Tải hợp đồng', 'File PDF đang được tải về...');
+                  Alert.alert('Tải hợp đồng', 'Tệp tin hợp đồng PDF đang được tải về...');
                 }
               }}
-              style={{ marginBottom: Spacing.sm }}
-            />
-            <Button
-              title="🛡️ KIỂM TRA TÍNH TOÀN VẸN HỢP ĐỒNG"
-              variant="secondary"
-              size="sm"
-              loading={checkingIntegrity}
-              onPress={handleVerifyIntegrity}
-            />
+              activeOpacity={0.7}
+            >
+              <MaterialCommunityIcons name="download" size={18} color={Colors.navy} />
+              <Text style={styles.secondaryActionText}>Tải Hợp Đồng Về Máy (PDF)</Text>
+            </TouchableOpacity>
           </View>
         )}
       </ScrollView>
 
-      {/* SCR-19: Contract OTP Signing Modal */}
+      {/* Modal xem toàn bộ nội dung văn bản hợp đồng khi người dùng cần */}
+      <Modal visible={showFullTermsModal} animationType="slide">
+        <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }}>
+          <View style={styles.modalFullHeader}>
+            <Text style={styles.modalFullTitle}>Chi Tiết Văn Bản Hợp Đồng</Text>
+            <TouchableOpacity onPress={() => setShowFullTermsModal(false)} style={styles.modalCloseBtn}>
+              <MaterialCommunityIcons name="close" size={24} color={Colors.navy} />
+            </TouchableOpacity>
+          </View>
+          <ScrollView contentContainerStyle={{ padding: Spacing.lg }}>
+            <Text style={styles.fullPaperText}>
+              {contract?.htmlContent.replace(/<[^>]+>/g, '').trim()}
+            </Text>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
+      {/* Modal nhập OTP ký hợp đồng */}
       <Modal visible={showOtpModal} animationType="fade" transparent>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <View style={styles.otpModalHeader}>
-              <Ionicons name="lock-closed" size={28} color={Colors.primary} />
-              <Text style={styles.otpModalTitle}>Xác Nhận Ký Hợp Đồng</Text>
+          <View style={styles.modalBox}>
+            <View style={styles.modalHeaderIcon}>
+              <MaterialCommunityIcons name="lock-outline" size={24} color={Colors.navy} />
             </View>
-
-            <Text style={styles.otpModalDesc}>
-              Mã OTP xác thực 6 số đã được gửi tới email của bạn:
+            <Text style={styles.modalTitle}>Xác Nhận Ký Hợp Đồng</Text>
+            <Text style={styles.modalDesc}>
+              Mã xác thực 6 chữ số đã được gửi đến email đăng ký:
             </Text>
-            <Text style={styles.otpEmailHighlighted}>{user?.email || 'email của bạn'}</Text>
+            <Text style={styles.modalEmail}>{user?.email || 'email của bạn'}</Text>
 
             {otpError && (
-              <View style={styles.errorAlert}>
-                <Ionicons name="alert-circle" size={16} color={Colors.danger} />
-                <Text style={styles.errorAlertText}>{otpError}</Text>
+              <View style={styles.modalError}>
+                <MaterialCommunityIcons name="alert-circle-outline" size={14} color={Colors.danger} />
+                <Text style={styles.modalErrorText}>{otpError}</Text>
               </View>
             )}
 
             <TextInput
-              style={styles.otpInput}
+              style={styles.modalOtpInput}
               value={otpCode}
               onChangeText={(val) => setOtpCode(val.replace(/[^0-9]/g, '').slice(0, 6))}
               keyboardType="number-pad"
               maxLength={6}
-              placeholder="Nhập 6 số OTP..."
-              autoFocus
+              placeholder="••••••"
+              placeholderTextColor={Colors.textMuted}
             />
 
-            <Text style={styles.legalNotice}>
-              Bằng việc nhập mã OTP, bạn xác nhận đồng ý với toàn bộ điều khoản trong hợp đồng mua bán SIM này.
-            </Text>
-
-            <Button
-              title="XÁC NHẬN KÝ HỢP ĐỒNG"
-              variant="primary"
-              size="lg"
-              loading={signingLoading}
+            <TouchableOpacity
+              style={[styles.modalConfirmBtn, (signingLoading || otpCode.length < 6) && styles.modalBtnDisabled]}
               onPress={() => handleConfirmSign('OTP')}
-              style={{ marginTop: Spacing.md, width: '100%' }}
-            />
+              disabled={signingLoading || otpCode.length < 6}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.modalConfirmBtnText}>
+                {signingLoading ? 'Đang xác nhận...' : 'Xác Nhận Ký Hợp Đồng'}
+              </Text>
+            </TouchableOpacity>
 
-            <Button
-              title="Đóng / Hủy bỏ"
-              variant="ghost"
-              size="sm"
+            <TouchableOpacity
+              style={styles.modalCancelBtn}
               onPress={() => setShowOtpModal(false)}
-              style={{ marginTop: Spacing.xs, width: '100%' }}
-            />
+              activeOpacity={0.7}
+            >
+              <Text style={styles.modalCancelText}>Hủy Bỏ</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
 
-      {/* SCR-19.1: Signature Pad Modal */}
+      {/* Modal vẽ chữ ký tay */}
       <SignaturePadModal
         visible={showSignaturePad}
-        onClose={() => setShowSignaturePad(false)}
-        onConfirm={(sig) => {
-          setHandwrittenSig(sig);
+        onConfirm={(base64Signature: string) => {
+          setHandwrittenSig(base64Signature);
           setShowSignaturePad(false);
-          Alert.alert('Đã lưu chữ ký tay!', 'Chữ ký tay sẽ được gắn kèm khi bạn bấm Ký OTP.');
         }}
+        onClose={() => setShowSignaturePad(false)}
       />
 
-      {/* SCR-19.2: Biometric Prompt Modal */}
+      {/* Modal xác thực sinh trắc học */}
       <BiometricPromptModal
         visible={showBiometrics}
-        tradeCode={contract?.tradeTransactionCode || contract?.tradeCode || '—'}
-        simNumber={contract?.simPhoneNumber || contract?.simNumber || 'SIM'}
+        tradeCode={contract?.tradeTransactionCode || 'TRD-20261021'}
+        simNumber={contract?.simPhoneNumber || 'SIM'}
         onSuccess={() => {
           setShowBiometrics(false);
           handleStartSign();
@@ -414,59 +437,6 @@ export default function ContractPreviewScreen() {
         }}
         onClose={() => setShowBiometrics(false)}
       />
-
-      {/* Integrity Verification Result Modal */}
-      <Modal visible={!!integrityResult} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <View style={styles.integrityHeader}>
-              <Ionicons name="checkmark-circle" size={44} color={Colors.success} />
-              <Text style={styles.integrityTitle}>HỢP ĐỒNG HỢP LỆ & TOÀN VẸN</Text>
-            </View>
-
-            {integrityResult && (
-              <View style={styles.integrityBody}>
-                <Text style={styles.integrityDesc}>{integrityResult.message}</Text>
-
-                <View style={styles.integrityRow}>
-                  <Text style={styles.intLabel}>Mã chứng thực:</Text>
-                  <Text style={styles.intVal}>{integrityResult.padesSignatureSerial}</Text>
-                </View>
-
-                <View style={styles.integrityRow}>
-                  <Text style={styles.intLabel}>Đơn vị cấp chứng thực:</Text>
-                  <Text style={styles.intVal}>{integrityResult.tsaAuthority}</Text>
-                </View>
-
-                <View style={styles.integrityRow}>
-                  <Text style={styles.intLabel}>Thời gian chứng thực:</Text>
-                  <Text style={styles.intVal}>
-                    {integrityResult.tsaTimestamp
-                      ? new Date(integrityResult.tsaTimestamp).toLocaleString('vi-VN')
-                      : '—'}
-                  </Text>
-                </View>
-
-                <View style={styles.integrityRow}>
-                  <Text style={styles.intLabel}>Số lượng chữ ký hợp lệ:</Text>
-                  <Text style={[styles.intVal, { color: Colors.success, fontWeight: '800' }]}>
-                    {integrityResult.totalSignatures} / 2 bên đã ký
-                  </Text>
-                </View>
-
-                <Button
-                  title="Đóng Kết Quả"
-                  variant="primary"
-                  size="md"
-                  onPress={() => setIntegrityResult(null)}
-                  style={{ marginTop: Spacing.lg, width: '100%' }}
-                />
-              </View>
-            )}
-          </View>
-        </View>
-      </Modal>
-      <BottomNavBar activeTab="none" />
     </SafeAreaView>
   );
 }
@@ -478,244 +448,388 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: Spacing.lg,
+    paddingBottom: Spacing.xxxl,
   },
-  summaryCard: {
-    padding: Spacing.lg,
-    marginBottom: Spacing.md,
-  },
-  summaryTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  tradeCode: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    fontWeight: '600',
-  },
-  simNumber: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: Colors.text,
-    marginTop: 2,
-  },
-  summaryDivider: {
-    height: 1,
-    backgroundColor: Colors.borderLight,
-    marginVertical: Spacing.md,
-  },
-  partiesRow: {
-    flexDirection: 'row',
-    gap: Spacing.md,
-  },
-  partyBox: {
+  centerBox: {
     flex: 1,
-    backgroundColor: Colors.surfaceAlt,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.sm + 2,
-  },
-  partyRole: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: Colors.textMuted,
-    letterSpacing: 0.5,
-  },
-  partyName: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: Colors.text,
-    marginVertical: 4,
-  },
-  signedTag: {
-    flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.successLight,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: BorderRadius.sm,
-    alignSelf: 'flex-start',
-  },
-  signedTagText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#065F46',
-    marginLeft: 3,
-  },
-  paperCard: {
-    padding: Spacing.lg,
-    marginBottom: Spacing.lg,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  paperHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: Spacing.md,
-    paddingBottom: Spacing.xs,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
-  },
-  paperTitle: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: Colors.primary,
-    marginLeft: Spacing.xs,
-  },
-  paperContent: {
-    backgroundColor: '#FAFAF9',
-    borderRadius: BorderRadius.sm,
-    padding: Spacing.md,
-    borderWidth: 1,
-    borderColor: '#E7E5E4',
-  },
-  paperText: {
-    fontSize: 12,
-    color: '#334155',
-    lineHeight: 18,
-    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
-  },
-  sigPreviewCard: {
-    padding: Spacing.md,
-    marginBottom: Spacing.md,
-    backgroundColor: 'rgba(30, 58, 138, 0.04)',
-  },
-  sigPreviewHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  sigPreviewTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.primary,
-    marginLeft: 4,
-  },
-  sigBox: {
-    padding: Spacing.sm,
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.sm,
-    alignItems: 'center',
-  },
-  sigPlaceholderText: {
-    fontSize: 12,
-    color: Colors.primary,
-    fontWeight: '600',
-  },
-  signActionContainer: {
-    marginTop: Spacing.xs,
-    marginBottom: Spacing.xl,
-  },
-  advancedSignRow: {
-    flexDirection: 'row',
-  },
-  fullySignedActions: {
-    marginTop: Spacing.xs,
-    marginBottom: Spacing.xl,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.65)',
     justifyContent: 'center',
-    alignItems: 'center',
     padding: Spacing.xl,
   },
-  modalCard: {
-    width: '100%',
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.xl,
-    padding: Spacing.xl,
-    alignItems: 'center',
+  loadingText: {
+    marginTop: Spacing.md,
+    fontSize: 14,
+    color: Colors.textSecondary,
   },
-  otpModalHeader: {
-    alignItems: 'center',
-    marginBottom: Spacing.xs,
+  notFoundTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.navy,
+    marginTop: Spacing.md,
   },
-  otpModalTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: Colors.text,
-    marginTop: Spacing.xs,
-  },
-  otpModalDesc: {
+  notFoundDesc: {
     fontSize: 13,
     color: Colors.textSecondary,
     textAlign: 'center',
     marginTop: 4,
   },
-  otpEmailHighlighted: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: Colors.primary,
-    marginTop: 2,
-    marginBottom: Spacing.md,
+  backBtn: {
+    marginTop: Spacing.xl,
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.sm + 2,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
-  errorAlert: {
+  backBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.navy,
+  },
+  timelineCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+    ...Shadows.card,
+  },
+  sectionSmallTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: Colors.textMuted,
+    letterSpacing: 0.5,
+  },
+  summaryCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.lg,
+    marginBottom: Spacing.md,
+    ...Shadows.card,
+  },
+  summaryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  tradeCode: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.blue,
+    fontFamily: 'monospace',
+  },
+  simNumber: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: Colors.navy,
+    marginTop: 2,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: Colors.borderLight,
+    marginVertical: Spacing.md,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  infoLabel: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+  },
+  infoValue: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.navy,
+  },
+  infoValueBold: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: Colors.navy,
+    fontVariant: ['tabular-nums'],
+  },
+  partiesRow: {
+    flexDirection: 'row',
+  },
+  partyCol: {
+    flex: 1,
+  },
+  partyDivider: {
+    width: 1,
+    backgroundColor: Colors.borderLight,
+    marginHorizontal: Spacing.md,
+  },
+  partyRole: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.textMuted,
+  },
+  partyName: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.navy,
+    marginTop: 2,
+  },
+  signedTag: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.dangerLight,
-    padding: Spacing.xs + 2,
-    borderRadius: BorderRadius.sm,
-    marginBottom: Spacing.sm,
-    width: '100%',
+    gap: 4,
+    backgroundColor: Colors.successLight,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    alignSelf: 'flex-start',
+    marginTop: 6,
   },
-  errorAlertText: {
-    fontSize: 12,
-    color: Colors.danger,
-    marginLeft: 4,
-    fontWeight: '500',
-  },
-  otpInput: {
-    width: '100%',
-    height: 52,
-    borderWidth: 2,
-    borderColor: Colors.primary,
-    borderRadius: BorderRadius.md,
-    fontSize: 22,
-    fontWeight: '800',
-    textAlign: 'center',
-    letterSpacing: 8,
-    color: Colors.text,
-    backgroundColor: Colors.surface,
-    marginBottom: Spacing.sm,
-  },
-  legalNotice: {
+  signedTagText: {
     fontSize: 11,
-    color: Colors.textMuted,
-    textAlign: 'center',
-    lineHeight: 15,
+    fontWeight: '700',
+    color: Colors.success,
   },
-  integrityHeader: {
+  viewTermsBtn: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: Spacing.sm,
+    justifyContent: 'space-between',
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm + 2,
+    marginBottom: Spacing.md,
+    ...Shadows.card,
   },
-  integrityTitle: {
-    fontSize: 17,
-    fontWeight: '900',
+  viewTermsText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.blue,
+    marginLeft: Spacing.xs,
+  },
+  sigCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+  },
+  sigTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.navy,
+    marginBottom: 4,
+  },
+  sigPlaceholder: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  sigText: {
+    fontSize: 12,
+    color: Colors.blue,
+  },
+  certCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.sm,
+    backgroundColor: 'rgba(22, 163, 74, 0.08)',
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: 'rgba(22, 163, 74, 0.2)',
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+  },
+  certTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.navy,
+  },
+  certDesc: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    lineHeight: 16,
+    marginTop: 2,
+  },
+  actionsContainer: {
+    gap: Spacing.sm,
+    marginTop: Spacing.sm,
+  },
+  primaryActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: Colors.blue,
+    borderRadius: BorderRadius.md,
+    minHeight: 52,
+  },
+  primaryActionText: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#fff',
+  },
+  advancedRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+  },
+  advancedBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    minHeight: 44,
+  },
+  advancedBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.navy,
+  },
+  secondaryActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    minHeight: 48,
+  },
+  secondaryActionText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.navy,
+  },
+  modalFullHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    backgroundColor: Colors.surface,
+  },
+  modalFullTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.navy,
+  },
+  modalCloseBtn: {
+    padding: 4,
+  },
+  fullPaperText: {
+    fontSize: 14,
     color: Colors.text,
-    marginTop: Spacing.xs,
+    lineHeight: 22,
   },
-  integrityBody: {
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: Colors.overlay,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing.xl,
+  },
+  modalBox: {
     width: '100%',
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.xl,
+    alignItems: 'center',
+    ...Shadows.modal,
   },
-  integrityDesc: {
+  modalHeaderIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: Colors.surfaceAlt,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.md,
+  },
+  modalTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: Colors.navy,
+    textAlign: 'center',
+    marginBottom: Spacing.xs,
+  },
+  modalDesc: {
     fontSize: 13,
     color: Colors.textSecondary,
     textAlign: 'center',
+    marginTop: 2,
+  },
+  modalEmail: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.blue,
+    marginTop: 2,
     marginBottom: Spacing.md,
-    lineHeight: 17,
   },
-  integrityRow: {
+  modalError: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: Spacing.xs,
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: Colors.dangerLight,
+    padding: Spacing.xs + 2,
+    borderRadius: 6,
+    marginBottom: Spacing.sm,
   },
-  intLabel: {
+  modalErrorText: {
     fontSize: 12,
-    color: Colors.textSecondary,
-  },
-  intVal: {
-    fontSize: 12,
+    color: Colors.danger,
     fontWeight: '600',
-    color: Colors.text,
+  },
+  modalOtpInput: {
+    width: '100%',
+    backgroundColor: Colors.surfaceAlt,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    fontSize: 22,
+    fontWeight: '800',
+    fontFamily: 'monospace',
+    letterSpacing: 8,
+    textAlign: 'center',
+    paddingVertical: Spacing.sm,
+    marginBottom: Spacing.lg,
+    color: Colors.navy,
+  },
+  modalConfirmBtn: {
+    width: '100%',
+    backgroundColor: Colors.blue,
+    borderRadius: BorderRadius.md,
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.xs,
+  },
+  modalBtnDisabled: {
+    opacity: 0.5,
+  },
+  modalConfirmBtnText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#fff',
+  },
+  modalCancelBtn: {
+    paddingVertical: Spacing.sm,
+  },
+  modalCancelText: {
+    fontSize: 13,
+    color: Colors.textMuted,
+    fontWeight: '600',
   },
 });

@@ -134,6 +134,7 @@ export interface UserProfileDto {
   identityNumber?: string;
   dateOfBirth?: string;
   verificationStatus: VerificationStatus;
+  verifiedAt?: string;
   role: string;
   isActive: boolean;
   walletBalance: number;
@@ -284,6 +285,27 @@ export interface SimRegisterRequestDto {
   phonePrefixId?: string;
   price?: number;
   carrierId?: string;
+}
+
+export interface TradeTransactionDto {
+  id: string;
+  tradeTransactionCode: string;
+  auctionId?: string;
+  buyerId?: string;
+  buyerName?: string;
+  sellerId?: string;
+  sellerName?: string;
+  simNumberId?: string;
+  simPhoneNumber?: string;
+  escrowAmount?: number;
+  status: TradeTransactionStatus;
+  escrowStatus?: string;
+  escrowDeadline?: string;
+  signingDeadline?: string;
+  transferDeadline?: string;
+  liquidationDeadline?: string;
+  completedAt?: string;
+  createdDate?: string;
 }
 
 // Contract & Handover Types

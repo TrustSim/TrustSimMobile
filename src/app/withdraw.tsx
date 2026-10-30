@@ -1,216 +1,302 @@
 import React, { useState } from 'react';
 import {
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button } from '../components/Button';
-import { Card } from '../components/Card';
 import { Header } from '../components/Header';
-import { BottomNavBar } from '../components/BottomNavBar';
-import { Input } from '../components/Input';
-import { BorderRadius, Colors, Spacing } from '../constants/theme';
+import { MoneyField } from '../components/trust/MoneyField';
+import { ReceiptScreen } from '../components/trust/ReceiptScreen';
+import type { ReceiptData } from '../components/trust/ReceiptScreen';
+import { SecureReviewSheet } from '../components/trust/SecureReviewSheet';
+import type { ReviewItem } from '../components/trust/SecureReviewSheet';
+import { BorderRadius, Colors, Shadows, Spacing } from '../constants/theme';
 import { useAuth } from '../context/AuthContext';
 import { extractErrorMessage } from '../services/apiClient';
+import { BiometricService } from '../services/biometricService';
 import { walletService } from '../services/walletService';
 
 export default function WithdrawScreen() {
   const router = useRouter();
-  const { wallet, refreshWallet } = useAuth();
+  const { wallet, refreshWallet, profile } = useAuth();
 
   const [amount, setAmount] = useState<string>('');
   const [bankCode, setBankCode] = useState<string>('MB');
-  const [bankName, setBankName] = useState<string>('Ngân hàng TMCP Quân Đội (MB Bank)');
-  const [accountNumber, setAccountNumber] = useState<string>('');
-  const [accountHolderName, setAccountHolderName] = useState<string>('');
+  const [bankName, setBankName] = useState<string>('MB Bank');
+  const [accountNumber, setAccountNumber] = useState<string>('0987654321');
+  const [accountHolderName, setAccountHolderName] = useState<string>(
+    profile?.fullName || 'NGUYEN VAN A'
+  );
   const [note, setNote] = useState<string>('Rút tiền về tài khoản ngân hàng');
+
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Modal and receipt states
+  const [showReview, setShowReview] = useState<boolean>(false);
+  const [receiptData, setReceiptData] = useState<ReceiptData | null>(null);
+
   const bankOptions = [
-    { code: 'MB', name: 'Ngân hàng TMCP Quân Đội (MB Bank)' },
-    { code: 'VCB', name: 'Ngân hàng Ngoại Thương (Vietcombank)' },
-    { code: 'TCB', name: 'Ngân hàng Kỹ Thương (Techcombank)' },
-    { code: 'STB', name: 'Ngân hàng Sài Gòn Thương Tín (Sacombank)' },
-    { code: 'BIDV', name: 'Ngân hàng Đầu tư & Phát triển (BIDV)' },
-    { code: 'CTG', name: 'Ngân hàng Công Thương (Vietinbank)' },
+    { code: 'MB', name: 'MB Bank', fullName: 'Ngân hàng TMCP Quân Đội' },
+    { code: 'VCB', name: 'Vietcombank', fullName: 'Ngân hàng Ngoại Thương' },
+    { code: 'TCB', name: 'Techcombank', fullName: 'Ngân hàng Kỹ Thương' },
+    { code: 'STB', name: 'Sacombank', fullName: 'Ngân hàng Sài Gòn Thương Tín' },
+    { code: 'BIDV', name: 'BIDV', fullName: 'Ngân hàng Đầu tư & Phát triển' },
+    { code: 'CTG', name: 'Vietinbank', fullName: 'Ngân hàng Công Thương' },
   ];
 
-  const formatVnd = (val?: number) => {
-    if (typeof val !== 'number') return '0 đ';
-    return val.toLocaleString('vi-VN') + ' đ';
+  const availableBal = wallet?.availableBalance ?? 0;
+  const numAmount = parseInt(amount.replace(/[^0-9]/g, ''), 10) || 0;
+
+  const handleOpenReview = () => {
+    if (numAmount < 50000) {
+      setError('Số tiền rút tối thiểu là 50.000 ₫.');
+      return;
+    }
+    if (numAmount > availableBal) {
+      setError('Số dư khả dụng không đủ để thực hiện giao dịch.');
+      return;
+    }
+    if (!accountNumber.trim()) {
+      setError('Vui lòng nhập số tài khoản ngân hàng.');
+      return;
+    }
+    setError(null);
+    setShowReview(true);
   };
 
-  const handleWithdraw = async () => {
-    const numAmount = parseInt(amount.replace(/[^0-9]/g, ''), 10);
-    const available = wallet?.availableBalance || 0;
-
-    if (isNaN(numAmount) || numAmount < 50000) {
-      setError('Số tiền rút tối thiểu là 50.000 VNĐ.');
-      return;
-    }
-
-    if (numAmount > available) {
-      setError(`Số tiền rút vượt quá số dư khả dụng (${formatVnd(available)}).`);
-      return;
-    }
-
-    if (!accountNumber.trim()) {
-      setError('Vui lòng nhập số tài khoản ngân hàng thụ hưởng.');
-      return;
-    }
-
-    if (!accountHolderName.trim()) {
-      setError('Vui lòng nhập tên chủ tài khoản thụ hưởng.');
-      return;
-    }
-
-    setError(null);
+  const handleConfirmWithdraw = async () => {
+    // 1. Biometric verification step
     setLoading(true);
     try {
+      const bioResult = await BiometricService.authenticate(
+        `Xác thực vân tay/FaceID để rút ${numAmount.toLocaleString('vi-VN')} ₫`
+      );
+      if (!bioResult.success && Platform.OS !== 'web') {
+        // If biometric failed or not enrolled, proceed with password/alert
+        setError(bioResult.error || 'Xác thực sinh trắc học không thành công');
+        setShowReview(false);
+        setLoading(false);
+        return;
+      }
+
+      // 2. Call withdraw API
       const res = await walletService.withdraw({
         amount: numAmount,
         destinationBankCode: bankCode,
         destinationBankName: bankName,
         destinationAccountNumber: accountNumber.trim(),
-        destinationAccountHolderName: accountHolderName.toUpperCase().trim(),
+        destinationAccountHolderName: accountHolderName.trim().toUpperCase(),
         note: note.trim() || undefined,
       });
 
-      if (res.success) {
+      setShowReview(false);
+
+      if (res.success && res.data) {
         await refreshWallet();
-        Alert.alert(
-          'Lập lệnh rút tiền thành công!',
-          `Hệ thống đã tiếp nhận lệnh rút ${formatVnd(numAmount)} về tài khoản ${accountNumber} (${bankCode}). Tiền sẽ được chuyển trong 1-5 phút.`,
-          [{ text: 'Về Ví Của Tôi', onPress: () => router.back() }]
-        );
+        setReceiptData({
+          type: 'success',
+          title: 'Lệnh Rút Tiền Đã Tiếp Nhận',
+          amountDisplay: `- ${numAmount.toLocaleString('vi-VN')} ₫`,
+          description: 'Hệ thống đang tiến hành chuyển tiền qua cổng NAPAS 24/7 tới ngân hàng của bạn.',
+          details: [
+            { label: 'Ngân hàng thụ hưởng', value: bankName },
+            { label: 'Số tài khoản nhận', value: accountNumber, masked: true },
+            { label: 'Chủ tài khoản', value: accountHolderName.toUpperCase() },
+            { label: 'Phí giao dịch', value: '0 ₫ (Miễn phí)' },
+            { label: 'Thời gian xử lý dự kiến', value: '1 - 3 phút' },
+          ],
+          referenceId: res.data.transactionCode,
+          timestamp: new Date().toISOString(),
+          nextSteps: [
+            'Tiền sẽ được chuyển thẳng vào số tài khoản ngân hàng đã đăng ký.',
+            'Nếu quá 15 phút chưa nhận được, vui lòng liên hệ hỗ trợ TrustSim.',
+          ],
+        });
       } else {
-        throw new Error(res.message || 'Rút tiền thất bại');
+        throw new Error(res.message || 'Lỗi khi rút tiền');
       }
     } catch (err: any) {
-      setError(extractErrorMessage(err, 'Lỗi xử lý yêu cầu rút tiền.'));
+      setError(extractErrorMessage(err, 'Lỗi rút tiền'));
+      setShowReview(false);
     } finally {
       setLoading(false);
     }
   };
 
+  if (receiptData) {
+    return (
+      <ReceiptScreen
+        data={receiptData}
+        onDone={() => {
+          router.replace('/(tabs)/wallet');
+        }}
+        doneLabel="Về Ví Tiền"
+      />
+    );
+  }
+
+  const reviewItems: ReviewItem[] = [
+    { label: 'Số tiền rút', value: `${numAmount.toLocaleString('vi-VN')} ₫`, prominent: true },
+    { label: 'Phí dịch vụ', value: '0 ₫ (Miễn phí)' },
+    { label: 'Ngân hàng nhận', value: bankName },
+    { label: 'Tài khoản nhận', value: accountNumber, masked: true },
+    { label: 'Tên người nhận', value: accountHolderName.toUpperCase() },
+    { label: 'Thời gian xử lý', value: '24/7 (tối đa 5 phút)' },
+  ];
+
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
-      <Header title="Rút Tiền Về Ngân Hàng" showBack onBack={() => router.back()} showHome />
+      <Header title="Rút Tiền Về Ngân Hàng" showBack onBack={() => router.back()} />
 
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.keyboardView}
       >
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          {/* Balance card */}
-          <Card style={styles.balanceCard}>
-            <Text style={styles.balanceLabel}>Số dư khả dụng có thể rút:</Text>
-            <Text style={styles.balanceAmount}>{formatVnd(wallet?.availableBalance)}</Text>
-          </Card>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Available balance overview */}
+          <MoneyField
+            rows={[
+              { label: 'Số dư khả dụng để rút', amount: availableBal, color: Colors.navy },
+            ]}
+            style={{ marginBottom: Spacing.lg }}
+          />
 
-          <Card style={styles.formCard}>
-            {error && (
-              <View style={styles.errorAlert}>
-                <Ionicons name="alert-circle" size={18} color={Colors.danger} />
-                <Text style={styles.errorAlertText}>{error}</Text>
-              </View>
-            )}
+          {/* Bank selector */}
+          <View style={styles.formCard}>
+            <Text style={styles.fieldLabel}>NGÂN HÀNG THỤ HƯỞNG</Text>
+            <View style={styles.bankGrid}>
+              {bankOptions.map((b) => {
+                const isSelected = bankCode === b.code;
+                return (
+                  <TouchableOpacity
+                    key={b.code}
+                    style={[styles.bankOption, isSelected && styles.bankOptionSelected]}
+                    onPress={() => {
+                      setBankCode(b.code);
+                      setBankName(b.name);
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.bankCodeText, isSelected && styles.bankCodeTextSelected]}>
+                      {b.code}
+                    </Text>
+                    <Text style={styles.bankNameText} numberOfLines={1}>{b.name}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
 
-            <Input
-              label="Số tiền muốn rút (VNĐ)"
-              placeholder="Ví dụ: 500000"
-              value={amount}
-              onChangeText={(val) => setAmount(val.replace(/[^0-9]/g, ''))}
-              keyboardType="number-pad"
-              hint="Tối thiểu: 50.000 VNĐ • Phí rút: Miễn phí"
-              leftIcon={<Ionicons name="cash-outline" size={18} color={Colors.primary} />}
-            />
+            {/* Account number */}
+            <Text style={[styles.fieldLabel, { marginTop: Spacing.md }]}>SỐ TÀI KHOẢN NGÂN HÀNG</Text>
+            <View style={styles.inputBox}>
+              <MaterialCommunityIcons name="credit-card-outline" size={18} color={Colors.navy} />
+              <TextInput
+                style={styles.textInput}
+                value={accountNumber}
+                onChangeText={setAccountNumber}
+                placeholder="Nhập số tài khoản"
+                placeholderTextColor={Colors.textMuted}
+                keyboardType="number-pad"
+              />
+            </View>
 
-            {/* Quick Fill All */}
+            {/* Holder Name */}
+            <Text style={[styles.fieldLabel, { marginTop: Spacing.md }]}>TÊN CHỦ TÀI KHOẢN (KHÔNG DẤU)</Text>
+            <View style={styles.inputBox}>
+              <MaterialCommunityIcons name="account-outline" size={18} color={Colors.navy} />
+              <TextInput
+                style={[styles.textInput, { textTransform: 'uppercase' }]}
+                value={accountHolderName}
+                onChangeText={(val) => setAccountHolderName(val.toUpperCase())}
+                placeholder="NGUYEN VAN A"
+                placeholderTextColor={Colors.textMuted}
+                autoCapitalize="characters"
+              />
+            </View>
+          </View>
+
+          {/* Amount to withdraw */}
+          <View style={styles.formCard}>
+            <Text style={styles.fieldLabel}>SỐ TIỀN RÚT (₫)</Text>
+            <View style={styles.amountInputRow}>
+              <TextInput
+                style={styles.amountInput}
+                value={numAmount > 0 ? numAmount.toLocaleString('vi-VN') : ''}
+                onChangeText={(val) => setAmount(val.replace(/[^0-9]/g, ''))}
+                placeholder="0"
+                placeholderTextColor={Colors.textMuted}
+                keyboardType="number-pad"
+              />
+              <Text style={styles.inputCurrency}>₫</Text>
+            </View>
+
+            {/* Quick Withdraw All button */}
             <TouchableOpacity
-              style={styles.fillAllBtn}
-              onPress={() => setAmount(Math.floor(wallet?.availableBalance || 0).toString())}
+              style={styles.withdrawAllBtn}
+              onPress={() => setAmount(availableBal.toString())}
+              activeOpacity={0.7}
             >
-              <Text style={styles.fillAllText}>Rút toàn bộ số dư</Text>
+              <Text style={styles.withdrawAllText}>Rút toàn bộ số dư: {availableBal.toLocaleString('vi-VN')} ₫</Text>
             </TouchableOpacity>
 
-            {/* Select Bank */}
-            <Text style={styles.fieldLabel}>CHỌN NGÂN HÀNG THỤ HƯỞNG:</Text>
-            <View style={styles.bankGrid}>
-              {bankOptions.map((b) => (
-                <TouchableOpacity
-                  key={b.code}
-                  style={[
-                    styles.bankChip,
-                    bankCode === b.code && styles.bankChipSelected,
-                  ]}
-                  onPress={() => {
-                    setBankCode(b.code);
-                    setBankName(b.name);
-                  }}
-                >
-                  <Text
-                    style={[
-                      styles.bankChipText,
-                      bankCode === b.code && styles.bankChipTextSelected,
-                    ]}
-                  >
-                    {b.code}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            <Text style={styles.selectedBankSub}>{bankName}</Text>
+            {error ? (
+              <View style={styles.errorBox}>
+                <MaterialCommunityIcons name="alert-circle-outline" size={14} color={Colors.danger} />
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            ) : null}
+          </View>
 
-            <Input
-              label="Số tài khoản ngân hàng"
-              placeholder="Nhập số tài khoản..."
-              value={accountNumber}
-              onChangeText={setAccountNumber}
-              keyboardType="number-pad"
-              leftIcon={<Ionicons name="card-outline" size={18} color={Colors.textSecondary} />}
-            />
+          {/* Security policy notice */}
+          <View style={styles.securityBox}>
+            <MaterialCommunityIcons name="shield-lock-outline" size={18} color={Colors.navy} />
+            <Text style={styles.securityText}>
+              Xác thực sinh trắc học (vân tay / khuôn mặt) sẽ được yêu cầu ở bước rà soát trước khi lệnh rút tiền được gửi đi.
+            </Text>
+          </View>
 
-            <Input
-              label="Tên chủ tài khoản (Viết hoa không dấu)"
-              placeholder="Ví dụ: NGUYEN VAN A"
-              value={accountHolderName}
-              onChangeText={(val) => setAccountHolderName(val.toUpperCase())}
-              autoCapitalize="characters"
-              hint="Bắt buộc trùng khớp với tên trên thẻ ngân hàng"
-              leftIcon={<Ionicons name="person-outline" size={18} color={Colors.textSecondary} />}
-            />
-
-            <Input
-              label="Ghi chú chuyển khoản (Tùy chọn)"
-              placeholder="Ghi chú..."
-              value={note}
-              onChangeText={setNote}
-              leftIcon={<Ionicons name="create-outline" size={18} color={Colors.textSecondary} />}
-            />
-
-            <Button
-              title="XÁC NHẬN RÚT TIỀN"
-              variant="primary"
-              size="lg"
-              loading={loading}
-              icon={<Ionicons name="arrow-up-circle" size={18} color={Colors.textInverse} />}
-              onPress={handleWithdraw}
-              style={styles.submitBtn}
-            />
-          </Card>
+          {/* Continue CTA */}
+          <TouchableOpacity
+            style={[styles.continueBtn, (numAmount < 50000 || numAmount > availableBal) && styles.continueBtnDisabled]}
+            onPress={handleOpenReview}
+            disabled={numAmount < 50000 || numAmount > availableBal}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Rà soát lệnh rút tiền"
+          >
+            <MaterialCommunityIcons name="shield-check" size={20} color="#fff" />
+            <Text style={styles.continueBtnText}>
+              {numAmount > 0
+                ? `Rà soát rút ${numAmount.toLocaleString('vi-VN')} ₫`
+                : 'Nhập số tiền muốn rút'}
+            </Text>
+          </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
-      <BottomNavBar activeTab="wallet" />
+
+      {/* Secure Review Sheet — confirm before commit */}
+      <SecureReviewSheet
+        visible={showReview}
+        title="Rà Soát Lệnh Rút Tiền"
+        confirmLabel={`Xác nhận rút ${numAmount.toLocaleString('vi-VN')} ₫`}
+        items={reviewItems}
+        warning="Vui lòng đảm bảo số tài khoản nhận tiền chính xác. TrustSim không chịu trách nhiệm nếu quý khách nhập sai thông tin ngân hàng."
+        onConfirm={handleConfirmWithdraw}
+        onCancel={() => setShowReview(false)}
+        loading={loading}
+      />
     </SafeAreaView>
   );
 }
@@ -225,55 +311,20 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: Spacing.lg,
-  },
-  balanceCard: {
-    backgroundColor: 'rgba(16, 185, 129, 0.08)',
-    borderColor: 'rgba(16, 185, 129, 0.2)',
-    borderWidth: 1,
-    padding: Spacing.md,
-    marginBottom: Spacing.md,
-  },
-  balanceLabel: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-  },
-  balanceAmount: {
-    fontSize: 22,
-    fontWeight: '900',
-    color: Colors.success,
-    marginTop: 2,
+    paddingBottom: Spacing.xxxl,
   },
   formCard: {
-    padding: Spacing.xl,
-  },
-  errorAlert: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.dangerLight,
-    padding: Spacing.sm + 2,
-    borderRadius: BorderRadius.md,
-    marginBottom: Spacing.md,
-  },
-  errorAlertText: {
-    flex: 1,
-    color: Colors.danger,
-    fontSize: 13,
-    marginLeft: Spacing.xs,
-    fontWeight: '500',
-  },
-  fillAllBtn: {
-    alignSelf: 'flex-end',
-    marginTop: -Spacing.xs,
-    marginBottom: Spacing.md,
-  },
-  fillAllText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.primary,
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.lg,
+    marginBottom: Spacing.lg,
+    ...Shadows.card,
   },
   fieldLabel: {
     fontSize: 11,
-    fontWeight: '800',
+    fontWeight: '700',
     color: Colors.textSecondary,
     letterSpacing: 0.5,
     marginBottom: Spacing.xs,
@@ -283,33 +334,124 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: Spacing.xs,
   },
-  bankChip: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs + 2,
-    borderRadius: BorderRadius.sm,
+  bankOption: {
+    width: '31%',
     backgroundColor: Colors.surfaceAlt,
+    borderRadius: BorderRadius.sm,
     borderWidth: 1,
     borderColor: Colors.border,
+    padding: Spacing.xs + 2,
+    alignItems: 'center',
+    minHeight: 52,
+    justifyContent: 'center',
   },
-  bankChipSelected: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
+  bankOptionSelected: {
+    borderColor: Colors.blue,
+    backgroundColor: 'rgba(22, 102, 197, 0.08)',
   },
-  bankChipText: {
+  bankCodeText: {
     fontSize: 13,
     fontWeight: '800',
-    color: Colors.text,
+    color: Colors.navy,
   },
-  bankChipTextSelected: {
-    color: Colors.textInverse,
+  bankCodeTextSelected: {
+    color: Colors.blue,
   },
-  selectedBankSub: {
+  bankNameText: {
+    fontSize: 10,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  inputBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surfaceAlt,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingHorizontal: Spacing.md,
+    minHeight: 46,
+    gap: Spacing.xs,
+  },
+  textInput: {
+    flex: 1,
+    fontSize: 14,
+    color: Colors.navy,
+    fontWeight: '600',
+    padding: 0,
+  },
+  amountInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderBottomWidth: 2,
+    borderBottomColor: Colors.blue,
+    paddingBottom: Spacing.xs,
+    marginBottom: Spacing.sm,
+  },
+  amountInput: {
+    flex: 1,
+    fontSize: 28,
+    fontWeight: '800',
+    color: Colors.navy,
+    fontVariant: ['tabular-nums'],
+    padding: 0,
+  },
+  inputCurrency: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+  },
+  withdrawAllBtn: {
+    alignSelf: 'flex-start',
+    paddingVertical: 4,
+    paddingHorizontal: 2,
+  },
+  withdrawAllText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.blue,
+  },
+  errorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: Colors.dangerLight,
+    borderRadius: 6,
+    padding: Spacing.xs + 2,
+    marginTop: Spacing.sm,
+  },
+  errorText: {
+    fontSize: 12,
+    color: Colors.danger,
+    fontWeight: '600',
+  },
+  securityBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.xs + 2,
+    marginBottom: Spacing.xl,
+  },
+  securityText: {
     fontSize: 12,
     color: Colors.textSecondary,
-    marginTop: 4,
-    marginBottom: Spacing.md,
+    flex: 1,
+    lineHeight: 17,
   },
-  submitBtn: {
-    marginTop: Spacing.md,
+  continueBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: Colors.blue,
+    borderRadius: BorderRadius.md,
+    minHeight: 52,
+  },
+  continueBtnDisabled: {
+    opacity: 0.5,
+  },
+  continueBtnText: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#fff',
   },
 });
