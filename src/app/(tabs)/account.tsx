@@ -65,7 +65,7 @@ export default function AccountScreen() {
   const isVerified = profile?.verificationStatus === 'VERIFIED';
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView edges={['top']} style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Profile Card */}
         <Card style={styles.profileCard}>

@@ -152,7 +152,7 @@ export default function ContractPreviewScreen() {
 
   if (loading && !contract) {
     return (
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView edges={['top']} style={styles.safeArea}>
         <Header title="Hợp Đồng Chuyển Nhượng SIM" showBack onBack={() => router.back()} showHome />
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
           <ActivityIndicator size="large" color={Colors.primary} />
@@ -164,7 +164,7 @@ export default function ContractPreviewScreen() {
 
   if (!loading && !contract) {
     return (
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView edges={['top']} style={styles.safeArea}>
         <Header title="Hợp Đồng Chuyển Nhượng SIM" showBack onBack={() => router.back()} showHome />
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: Spacing.xl }}>
           <Ionicons name="document-text-outline" size={60} color={Colors.border} />
@@ -186,7 +186,7 @@ export default function ContractPreviewScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView edges={['top']} style={styles.safeArea}>
       <Header title="Hợp Đồng Chuyển Nhượng SIM" showBack onBack={() => router.back()} showHome />
 
       <ScrollView contentContainerStyle={styles.scrollContent}>

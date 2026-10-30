@@ -70,7 +70,7 @@ export default function DepositScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView edges={['top']} style={styles.safeArea}>
       <Header
         title={depositResult ? 'Thanh Toán Chuyển Khoản QR' : 'Nạp Tiền Vào Ví'}
         showBack

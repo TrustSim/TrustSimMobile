@@ -175,7 +175,7 @@ export default function TransactionsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView edges={['top']} style={styles.safeArea}>
       <Header title="Lịch Sử Giao Dịch" showBack onBack={() => router.back()} showHome />
 
       {/* Tabs */}

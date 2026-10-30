@@ -122,7 +122,7 @@ export default function SimVerifyScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView edges={['top']} style={styles.safeArea}>
       <Header
         title={step === 1 ? 'Xác Thực Quyền Sở Hữu SIM' : 'Nhập Mã OTP Xác Thực'}
         showBack

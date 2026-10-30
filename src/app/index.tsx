@@ -2,6 +2,7 @@ import React from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { Redirect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../constants/theme';
 import { useAuth } from '../context/AuthContext';
 
@@ -10,14 +11,14 @@ export default function IndexScreen() {
 
   if (isLoading) {
     return (
-      <View style={styles.splashContainer}>
+      <SafeAreaView style={styles.splashContainer}>
         <View style={styles.logoBadge}>
           <Ionicons name="shield-checkmark" size={50} color={Colors.textInverse} />
         </View>
         <Text style={styles.appName}>TrustSim</Text>
         <Text style={styles.appSlogan}>Sàn Giao Dịch SIM Số Đẹp Uy Tín & An Toàn</Text>
         <ActivityIndicator size="small" color={Colors.accent} style={{ marginTop: 24 }} />
-      </View>
+      </SafeAreaView>
     );
   }
 

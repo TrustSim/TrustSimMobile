@@ -1,15 +1,20 @@
 import React from 'react';
 import { Redirect, Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/theme';
 import { useAuth } from '../../context/AuthContext';
 
 export default function TabLayout() {
   const { isAuthenticated, isLoading } = useAuth();
+  const insets = useSafeAreaInsets();
 
   if (!isLoading && !isAuthenticated) {
     return <Redirect href="/login" />;
   }
+
+  const bottomInset = Math.max(insets.bottom, 8);
+  const tabHeight = 54 + bottomInset;
 
   return (
     <Tabs
@@ -21,9 +26,9 @@ export default function TabLayout() {
           backgroundColor: Colors.surface,
           borderTopColor: Colors.borderLight,
           borderTopWidth: 1,
-          height: 60,
-          paddingBottom: 8,
-          paddingTop: 8,
+          height: tabHeight,
+          paddingBottom: bottomInset,
+          paddingTop: 6,
         },
         tabBarLabelStyle: {
           fontSize: 11,

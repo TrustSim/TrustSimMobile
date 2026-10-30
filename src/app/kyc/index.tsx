@@ -26,7 +26,7 @@ export default function KycIntroScreen() {
   const isVerified = profile?.verificationStatus === 'VERIFIED';
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView edges={['top']} style={styles.safeArea}>
       <Header title="Xác Thực Danh Tính eKYC" showBack onBack={() => router.back()} showHome />
 
       <ScrollView contentContainerStyle={styles.scrollContent}>

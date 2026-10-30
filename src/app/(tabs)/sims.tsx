@@ -152,7 +152,7 @@ export default function MySimsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView edges={['top']} style={styles.safeArea}>
       {/* Top Header */}
       <View style={styles.topBar}>
         <View>

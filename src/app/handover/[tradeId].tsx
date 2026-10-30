@@ -131,7 +131,7 @@ export default function SimHandoverScreen() {
 
   if (loading && !progress) {
     return (
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView edges={['top']} style={styles.safeArea}>
         <Header title="Tiến Trình Bàn Giao SIM" showBack onBack={() => router.back()} showHome />
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
           <ActivityIndicator size="large" color={Colors.primary} />
@@ -143,7 +143,7 @@ export default function SimHandoverScreen() {
 
   if (!progress) {
     return (
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView edges={['top']} style={styles.safeArea}>
         <Header title="Tiến Trình Bàn Giao SIM" showBack onBack={() => router.back()} showHome />
         <View style={styles.emptyContainer}>
           <Ionicons name="document-text-outline" size={64} color={Colors.textMuted} />
@@ -164,7 +164,7 @@ export default function SimHandoverScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView edges={['top']} style={styles.safeArea}>
       <Header
         title={confirmResult ? 'Hoàn Tất Giao Dịch' : 'Tiến Trình Bàn Giao SIM'}
         showBack

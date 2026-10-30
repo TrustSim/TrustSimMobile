@@ -103,7 +103,7 @@ export default function WithdrawScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView edges={['top']} style={styles.safeArea}>
       <Header title="Rút Tiền Về Ngân Hàng" showBack onBack={() => router.back()} showHome />
 
       <KeyboardAvoidingView

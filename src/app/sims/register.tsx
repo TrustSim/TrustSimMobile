@@ -85,7 +85,7 @@ export default function RegisterSimScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView edges={['top']} style={styles.safeArea}>
       <Header title="Đăng Ký SIM Mới" showBack onBack={() => router.back()} showHome />
 
       <KeyboardAvoidingView
