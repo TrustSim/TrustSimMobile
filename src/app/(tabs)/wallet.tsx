@@ -10,8 +10,7 @@ import {
 import { useFocusEffect, useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { BorderRadius, Colors, Shadows, Spacing } from '../../constants/theme';
-import { VerificationStatusBadge } from '../../components/trust/VerificationStatusBadge';
+import { Colors } from '../../constants/theme';
 import { useAuth } from '../../context/AuthContext';
 import { walletService } from '../../services/walletService';
 import { StatementItemDto } from '../../types';
@@ -32,17 +31,17 @@ function getStatementTitle(type: string, description?: string): string {
     case 'AUCTION_DEPOSIT_RELEASED':
       return 'Hoàn tiền cọc đấu giá';
     case 'AUCTION_DEPOSIT_FORFEITED':
-      return 'Khấu trừ cọc vi phạm quy chế';
+      return 'Khấu trừ cọc vi phạm';
     case 'ESCROW_HOLD':
-      return 'Chuyển vào tiền ký quỹ giao dịch';
+      return 'Chuyển vào tiền ký quỹ';
     case 'ESCROW_DEBIT':
       return 'Thanh toán từ tiền ký quỹ';
     case 'ESCROW_REFUNDED':
       return 'Hoàn tiền ký quỹ';
     case 'SELLER_PAYOUT':
-      return 'Giải ngân tiền bán SIM từ ký quỹ';
+      return 'Giải ngân tiền bán SIM';
     case 'AUCTION_COMPENSATION':
-      return 'Nhận tiền bồi thường giao dịch';
+      return 'Nhận tiền bồi thường';
     case 'PENALTY':
       return 'Khấu trừ tiền phạt';
     default:
@@ -68,6 +67,24 @@ function isEscrowTx(item: StatementItemDto): boolean {
     t === 'ESCROW_REFUNDED' ||
     t === 'SELLER_PAYOUT'
   );
+}
+
+function getTxStatusMeta(status?: string, direction?: string) {
+  if (direction === 'LOCK') {
+    return { label: 'Tạm giữ', dot: '#4C5FD5', color: '#4C5FD5' };
+  }
+  switch (status) {
+    case 'COMPLETED':
+    case 'SUCCESS':
+      return { label: 'Hoàn tất', dot: '#10B981', color: '#059669' };
+    case 'PENDING':
+      return { label: 'Chờ duyệt', dot: '#F59E0B', color: '#D97706' };
+    case 'FAILED':
+    case 'CANCELLED':
+      return { label: 'Từ chối', dot: '#E11D48', color: '#E11D48' };
+    default:
+      return { label: status || 'Hoàn tất', dot: '#94A3B8', color: '#64748B' };
+  }
 }
 
 export default function WalletScreen() {
@@ -147,24 +164,6 @@ export default function WalletScreen() {
     return statementItems;
   }, [statementItems, filter]);
 
-  const getStatusBadge = (status?: string, direction?: string) => {
-    if (direction === 'LOCK') {
-      return <VerificationStatusBadge status="checking" label="Đang giữ trung gian" size="sm" />;
-    }
-    switch (status) {
-      case 'COMPLETED':
-      case 'SUCCESS':
-        return <VerificationStatusBadge status="verified" label="Hoàn tất" size="sm" />;
-      case 'PENDING':
-        return <VerificationStatusBadge status="pending" label="Chờ duyệt" size="sm" />;
-      case 'FAILED':
-      case 'CANCELLED':
-        return <VerificationStatusBadge status="rejected" label="Từ chối" size="sm" />;
-      default:
-        return <VerificationStatusBadge status="not_submitted" label={status || 'Khác'} size="sm" />;
-    }
-  };
-
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
       <ScrollView
@@ -174,129 +173,116 @@ export default function WalletScreen() {
         }
         showsVerticalScrollIndicator={false}
       >
-        {/* Top Header */}
-        <View style={styles.headerRow}>
-          <View>
-            <Text style={styles.headerSub}>Sổ cái tài chính · Cọc & Ký quỹ</Text>
-            <Text style={styles.pageTitle}>Ví Tiền & Bảo Chứng</Text>
+        {/* ─── 1. UNIFIED TOP HEADER ─── */}
+        <View style={styles.topHeader}>
+          <Text style={styles.pageTitle}>Ví & Sổ cái</Text>
+
+          <View style={styles.topActionsRow}>
+            <TouchableOpacity
+              style={styles.iconCircleBtn}
+              onPress={() => router.push('/transactions')}
+              activeOpacity={0.8}
+              accessibilityLabel="Toàn bộ sao kê"
+            >
+              <MaterialCommunityIcons name="receipt-text-outline" size={19} color={Colors.navy} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.iconCircleBtn}
+              onPress={() => router.push('/notifications')}
+              activeOpacity={0.8}
+              accessibilityLabel="Thông báo"
+            >
+              <MaterialCommunityIcons name="bell-outline" size={19} color={Colors.navy} />
+            </TouchableOpacity>
           </View>
-          <VerificationStatusBadge
-            status={wallet?.walletStatus === 'LOCKED' ? 'rejected' : 'verified'}
-            label={wallet?.walletStatus === 'LOCKED' ? 'Tạm khóa' : 'Đang hoạt động'}
-            size="sm"
-          />
         </View>
 
-        {/* Deep Navy Financial Vault Hero Card */}
-        <View style={styles.vaultHeroCard}>
-          <View style={styles.vaultGlow} />
-          <View style={styles.vaultTopRow}>
-            <View style={styles.vaultBalanceHeader}>
-              <Text style={styles.vaultBalanceCaption}>Số dư khả dụng</Text>
-              <View style={styles.totalAssetPill}>
-                <Text style={styles.totalAssetLabel}>Tổng tài sản: </Text>
-                <Text
-                  style={styles.totalAssetValue}
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.7}
-                >
-                  {totalBal.toLocaleString('vi-VN')} ₫
-                </Text>
-              </View>
+        {/* ─── 2. HERO BALANCE CARD (Matching Home Soft-Cloud Luxury) ─── */}
+        <View style={styles.heroCard}>
+          <View style={styles.heroTopRow}>
+            <Text style={styles.heroLabel}>Số dư khả dụng</Text>
+            <View style={styles.totalAssetPill}>
+              <Text style={styles.totalAssetLabel}>Tổng tài sản </Text>
+              <Text
+                style={styles.totalAssetValue}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.75}
+              >
+                {totalBal.toLocaleString('vi-VN')} ₫
+              </Text>
             </View>
-            <Text
-              style={styles.vaultBalanceValue}
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              minimumFontScale={0.5}
-            >
-              {availableBal.toLocaleString('vi-VN')}{' '}
-              <Text style={styles.vaultCurrency}>₫</Text>
-            </Text>
           </View>
 
-          {/* 2 Glass Cards: Tiền Cọc Đấu Giá vs Tiền Ký Quỹ */}
-          <View style={styles.vaultGlassGrid}>
-            <View style={styles.vaultGlassBox}>
-              <View style={styles.vaultGlassHeader}>
-                <View style={[styles.vaultDot, { backgroundColor: '#FBBF24' }]} />
-                <Text style={styles.vaultGlassTitle}>Tiền cọc đấu giá</Text>
-              </View>
-              <Text
-                style={[styles.vaultGlassAmount, { color: '#FDE68A' }]}
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                minimumFontScale={0.65}
-              >
-                {depositBal.toLocaleString('vi-VN')} ₫
-              </Text>
-              <Text style={styles.vaultGlassNote}>
-                Giữ khi đấu giá (Thắng → cộng vào ký quỹ; Không thắng → hoàn tiền)
-              </Text>
-            </View>
+          <Text
+            style={styles.heroBalanceValue}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.55}
+          >
+            {availableBal.toLocaleString('vi-VN')}{' '}
+            <Text style={styles.heroCurrency}>₫</Text>
+          </Text>
 
-            <View style={styles.vaultGlassBox}>
-              <View style={styles.vaultGlassHeader}>
-                <View style={[styles.vaultDot, { backgroundColor: '#38BDF8' }]} />
-                <Text style={styles.vaultGlassTitle}>Tiền ký quỹ</Text>
-              </View>
+          {/* Action Pills */}
+          <View style={styles.heroBtnRow}>
+            <TouchableOpacity
+              style={styles.heroPrimaryBtn}
+              onPress={() => router.push('/deposit')}
+              activeOpacity={0.88}
+            >
+              <MaterialCommunityIcons name="plus" size={17} color="#001743" />
+              <Text style={styles.heroPrimaryBtnText}>Nạp tiền</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.heroSecondaryBtn}
+              onPress={() => router.push('/withdraw')}
+              activeOpacity={0.85}
+            >
+              <MaterialCommunityIcons name="arrow-top-right" size={17} color="#FFFFFF" />
+              <Text style={styles.heroSecondaryBtnText}>Rút tiền</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Docked 2-Column Sub-Balances */}
+          <View style={styles.heroStatsBar}>
+            <View style={styles.heroStatCol}>
+              <Text style={styles.heroStatCaption}>Tiền ký quỹ</Text>
               <Text
-                style={[styles.vaultGlassAmount, { color: '#7DD3FC' }]}
+                style={styles.heroStatAmount}
                 numberOfLines={1}
                 adjustsFontSizeToFit
-                minimumFontScale={0.65}
+                minimumFontScale={0.7}
               >
                 {escrowBal.toLocaleString('vi-VN')} ₫
               </Text>
-              <Text style={styles.vaultGlassNote}>
-                Giữ cho hợp đồng & sang tên (Hoàn tất → trả người bán; Hủy → hoàn tiền)
+            </View>
+            <View style={styles.heroStatDivider} />
+            <View style={styles.heroStatCol}>
+              <Text style={styles.heroStatCaption}>Cọc đấu giá</Text>
+              <Text
+                style={styles.heroStatAmount}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.7}
+              >
+                {depositBal.toLocaleString('vi-VN')} ₫
               </Text>
             </View>
           </View>
-
-          {/* Primary Actions */}
-          <View style={styles.vaultBtnRow}>
-            <TouchableOpacity
-              style={styles.depositCtaBtn}
-              onPress={() => router.push('/deposit')}
-              activeOpacity={0.88}
-              accessibilityRole="button"
-              accessibilityLabel="Nạp tiền vào ví"
-            >
-              <MaterialCommunityIcons name="arrow-down-left" size={18} color="#FFFFFF" />
-              <Text style={styles.depositCtaText}>Nạp tiền (VietQR)</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.withdrawCtaBtn}
-              onPress={() => router.push('/withdraw')}
-              activeOpacity={0.85}
-              accessibilityRole="button"
-              accessibilityLabel="Rút tiền ngân hàng"
-            >
-              <MaterialCommunityIcons name="arrow-up-right" size={18} color="#FFFFFF" />
-              <Text style={styles.withdrawCtaText}>Rút về ngân hàng</Text>
-            </TouchableOpacity>
-          </View>
         </View>
 
-        {/* Giải thích cơ chế Bảo chứng 2 lớp */}
-        <View style={styles.policyCard}>
-          <View style={styles.policyIconWrap}>
-            <MaterialCommunityIcons name="shield-lock-outline" size={20} color={Colors.blue} />
-          </View>
-          <Text style={styles.policyText}>
-            <Text style={{ fontWeight: '800', color: Colors.navy }}>Cơ chế bảo chứng 2 lớp: </Text>
-            Khi tham gia đấu giá, sàn tạm giữ <Text style={{ fontWeight: '700' }}>Tiền cọc</Text> (không thắng hoàn ngay; thắng cộng vào tiền ký quỹ). Khi lập hợp đồng chuyển nhượng, toàn bộ giá trị SIM nằm trong <Text style={{ fontWeight: '700' }}>Tiền ký quỹ</Text> và chỉ giải ngân cho người bán sau khi sang tên thành công.
-          </Text>
-        </View>
-
-        {/* Transaction History Header & Filters */}
+        {/* ─── 3. STATEMENT LEDGER HEADER & FILTERS ─── */}
         <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionTitle}>Biến động số dư & Sao kê</Text>
-          <TouchableOpacity onPress={() => router.push('/transactions')} activeOpacity={0.75}>
-            <Text style={styles.viewAllLink}>Toàn bộ sao kê →</Text>
+          <Text style={styles.sectionTitle}>Biến động số dư</Text>
+          <TouchableOpacity
+            onPress={() => router.push('/transactions')}
+            activeOpacity={0.75}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Text style={styles.viewAllLink}>Xem tất cả</Text>
           </TouchableOpacity>
         </View>
 
@@ -309,7 +295,7 @@ export default function WalletScreen() {
             [
               { key: 'ALL', label: 'Tất cả' },
               { key: 'WALLET', label: 'Nạp / Rút' },
-              { key: 'AUCTION_DEPOSIT', label: 'Tiền cọc đấu giá' },
+              { key: 'AUCTION_DEPOSIT', label: 'Cọc đấu giá' },
               { key: 'ESCROW', label: 'Tiền ký quỹ' },
             ] as { key: LedgerFilter; label: string }[]
           ).map((item) => {
@@ -329,107 +315,76 @@ export default function WalletScreen() {
           })}
         </ScrollView>
 
-        {/* Unified Transaction Ledger List */}
+        {/* ─── 4. TRANSACTION CARDS (Soft-Cloud Luxury) ─── */}
         {filteredItems.length === 0 ? (
           <View style={styles.emptyPanel}>
             <View style={styles.emptyIconCircle}>
               <MaterialCommunityIcons
                 name="receipt-text-outline"
-                size={26}
-                color={Colors.blue}
+                size={24}
+                color="#001743"
               />
             </View>
             <Text style={styles.emptyTitle}>Chưa có giao dịch phù hợp</Text>
-            <Text style={styles.emptySub}>
-              Mọi biến động Nạp/Rút, Đặt cọc đấu giá và Tiền ký quỹ đều được ghi nhận minh bạch tại đây.
-            </Text>
           </View>
         ) : (
-          <View style={styles.txLedgerPanel}>
+          <View style={styles.txStack}>
             {filteredItems.map((tx, idx) => {
               const isCredit = tx.direction === 'CREDIT';
               const isLock = tx.direction === 'LOCK';
-              const isEscrow = isEscrowTx(tx);
               const refCode = tx.referenceCode || tx.transactionCode || tx.id?.slice(0, 8);
               const txDate = tx.createdAt
                 ? new Date(tx.createdAt).toLocaleDateString('vi-VN', {
                     day: '2-digit',
                     month: '2-digit',
-                    year: 'numeric',
                     hour: '2-digit',
                     minute: '2-digit',
                   })
                 : '—';
 
-              const indicatorBg = isCredit
-                ? Colors.successLight
-                : isLock
-                ? isEscrow
-                  ? Colors.blueSoft
-                  : Colors.warningLight
-                : Colors.surfaceMuted;
-
-              const indicatorColor = isCredit
-                ? Colors.success
-                : isLock
-                ? isEscrow
-                  ? Colors.blue
-                  : Colors.amber
-                : Colors.navy;
-
               const iconName = isCredit
-                ? 'arrow-down-left'
+                ? 'arrow-bottom-left'
                 : isLock
                 ? 'shield-lock-outline'
-                : 'arrow-up-right';
+                : 'arrow-top-right';
+
+              const statusMeta = getTxStatusMeta(tx.status, tx.direction);
 
               return (
-                <React.Fragment key={tx.id || refCode || idx}>
-                  {idx > 0 && <View style={styles.hairlineH} />}
-                  <View style={styles.txRow}>
-                    <View style={[styles.txTypeIndicator, { backgroundColor: indicatorBg }]}>
-                      <MaterialCommunityIcons
-                        name={iconName}
-                        size={19}
-                        color={indicatorColor}
+                <View key={tx.id || refCode || idx} style={styles.txCard}>
+                  <View style={styles.txIconSquircle}>
+                    <MaterialCommunityIcons name={iconName} size={19} color="#001743" />
+                  </View>
+
+                  <View style={styles.txMetaCol}>
+                    <Text style={styles.txTitle} numberOfLines={1}>
+                      {getStatementTitle(tx.transactionType, tx.description)}
+                    </Text>
+                    <Text style={styles.txSub} numberOfLines={1}>
+                      #{refCode} · {txDate}
+                    </Text>
+                  </View>
+
+                  <View style={styles.txAmountCol}>
+                    <Text
+                      style={[
+                        styles.txAmount,
+                        { color: isCredit ? '#059669' : '#001743' },
+                      ]}
+                    >
+                      {isCredit ? '+' : '-'}
+                      {Math.abs(tx.amount).toLocaleString('vi-VN')} ₫
+                    </Text>
+                    <View style={styles.txStatusRow}>
+                      <View
+                        style={[styles.txStatusDot, { backgroundColor: statusMeta.dot }]}
                       />
-                    </View>
-
-                    <View style={styles.txMetaCol}>
-                      <Text style={styles.txTitle}>
-                        {getStatementTitle(tx.transactionType, tx.description)}
+                      <Text style={[styles.txStatusText, { color: statusMeta.color }]}>
+                        {statusMeta.label}
                       </Text>
-                      <View style={styles.txSubRow}>
-                        <Text style={styles.txCode}>#{refCode}</Text>
-                        <Text style={styles.txDot}>·</Text>
-                        <Text style={styles.txDate}>{txDate}</Text>
-                      </View>
-                    </View>
-
-                    <View style={styles.txAmountCol}>
-                      <Text
-                        style={[
-                          styles.txAmount,
-                          {
-                            color: isCredit
-                              ? Colors.success
-                              : isLock
-                              ? isEscrow
-                                ? Colors.blue
-                                : Colors.amber
-                              : Colors.navy,
-                          },
-                        ]}
-                      >
-                        {isCredit ? '+' : '-'}
-                        {Math.abs(tx.amount).toLocaleString('vi-VN')} ₫
-                      </Text>
-                      <View style={{ marginTop: 4 }}>
-                        {getStatusBadge(tx.status, tx.direction)}
-                      </View>
                     </View>
                   </View>
-                </React.Fragment>
+                </View>
               );
             })}
           </View>
@@ -442,91 +397,84 @@ export default function WalletScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: '#F6F7FB',
   },
   scrollContent: {
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.md,
-    paddingBottom: 110, // Floating bottom nav bar allowance
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 114,
   },
-  headerRow: {
+
+  // 1. Unified Top Header
+  topHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: Spacing.lg,
-  },
-  headerSub: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.textSecondary,
-    marginBottom: 2,
+    marginBottom: 18,
   },
   pageTitle: {
-    fontSize: 23,
+    fontSize: 22,
     fontWeight: '800',
-    color: Colors.navy,
-    letterSpacing: -0.5,
+    color: '#001743',
+    letterSpacing: -0.6,
   },
-  vaultHeroCard: {
-    backgroundColor: Colors.navy,
-    borderRadius: BorderRadius.xl,
-    padding: Spacing.xl,
-    marginBottom: Spacing.md,
-    position: 'relative',
-    overflow: 'hidden',
-    ...Shadows.lg,
-  },
-  vaultGlow: {
-    position: 'absolute',
-    top: -50,
-    right: -40,
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    backgroundColor: 'rgba(29, 78, 216, 0.3)',
-  },
-  vaultTopRow: {
-    marginBottom: Spacing.lg,
-  },
-  vaultBalanceHeader: {
+  topActionsRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4,
-    flexWrap: 'wrap',
-    gap: 6,
+    gap: 10,
   },
-  vaultBalanceCaption: {
-    fontSize: 12,
+  iconCircleBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 9999,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 23, 67, 0.06)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#001743',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+
+  // 2. Hero Balance Card
+  heroCard: {
+    backgroundColor: '#001743',
+    borderRadius: 28,
+    padding: 22,
+    marginBottom: 24,
+    shadowColor: '#001743',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.16,
+    shadowRadius: 24,
+    elevation: 8,
+  },
+  heroTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+    gap: 8,
+  },
+  heroLabel: {
+    fontSize: 13,
     fontWeight: '600',
-    color: '#94A3B8',
-  },
-  vaultBalanceValue: {
-    fontSize: 30,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    fontVariant: ['tabular-nums'],
-    letterSpacing: -0.8,
-  },
-  vaultCurrency: {
-    fontSize: 19,
-    fontWeight: '700',
-    color: '#94A3B8',
+    color: 'rgba(255, 255, 255, 0.68)',
   },
   totalAssetPill: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
-    borderRadius: BorderRadius.full,
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: 5,
+    borderRadius: 9999,
   },
   totalAssetLabel: {
-    fontSize: 10.5,
+    fontSize: 11,
     fontWeight: '600',
-    color: '#CBD5E1',
+    color: 'rgba(255, 255, 255, 0.65)',
   },
   totalAssetValue: {
     fontSize: 11.5,
@@ -534,242 +482,214 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontVariant: ['tabular-nums'],
   },
-  vaultGlassGrid: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
-    marginBottom: Spacing.lg,
-  },
-  vaultGlassBox: {
-    flex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.07)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.13)',
-    borderRadius: BorderRadius.md,
-    padding: Spacing.md,
-  },
-  vaultGlassHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  vaultDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  vaultGlassTitle: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#E2E8F0',
-  },
-  vaultGlassAmount: {
-    fontSize: 15,
+  heroBalanceValue: {
+    fontSize: 31,
     fontWeight: '800',
+    color: '#FFFFFF',
     fontVariant: ['tabular-nums'],
-    marginTop: 5,
-    letterSpacing: -0.3,
+    letterSpacing: -0.8,
+    marginBottom: 18,
   },
-  vaultGlassNote: {
-    fontSize: 10.5,
-    color: '#94A3B8',
-    marginTop: 4,
-    lineHeight: 14,
+  heroCurrency: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: 'rgba(255, 255, 255, 0.6)',
   },
-  vaultBtnRow: {
+  heroBtnRow: {
     flexDirection: 'row',
-    gap: Spacing.sm,
+    gap: 10,
+    marginBottom: 18,
   },
-  depositCtaBtn: {
-    flex: 1.15,
+  heroPrimaryBtn: {
+    flex: 1,
+    height: 44,
+    borderRadius: 9999,
+    backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    backgroundColor: Colors.crimson,
-    borderRadius: BorderRadius.md,
-    minHeight: 46,
   },
-  depositCtaText: {
+  heroPrimaryBtnText: {
     fontSize: 13.5,
     fontWeight: '800',
-    color: '#FFFFFF',
+    color: '#001743',
   },
-  withdrawCtaBtn: {
+  heroSecondaryBtn: {
     flex: 1,
+    height: 44,
+    borderRadius: 9999,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.22)',
-    borderRadius: BorderRadius.md,
-    minHeight: 46,
   },
-  withdrawCtaText: {
+  heroSecondaryBtnText: {
     fontSize: 13.5,
     fontWeight: '700',
     color: '#FFFFFF',
   },
-  policyCard: {
+  heroStatsBar: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: Spacing.sm,
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.md,
-    marginBottom: Spacing.xl,
-    ...Shadows.sm,
-  },
-  policyIconWrap: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    backgroundColor: Colors.blueSoft,
     alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 18,
+    paddingVertical: 11,
+    paddingHorizontal: 14,
   },
-  policyText: {
+  heroStatCol: {
     flex: 1,
-    fontSize: 11.5,
-    color: Colors.textSecondary,
-    lineHeight: 17,
   },
+  heroStatDivider: {
+    width: 1,
+    height: 24,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    marginHorizontal: 12,
+  },
+  heroStatCaption: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.6)',
+    marginBottom: 2,
+  },
+  heroStatAmount: {
+    fontSize: 13.5,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    fontVariant: ['tabular-nums'],
+  },
+
+  // 3. Statement Header & Filters
   sectionHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: Spacing.sm,
+    marginBottom: 12,
   },
   sectionTitle: {
     fontSize: 17,
     fontWeight: '800',
-    color: Colors.navy,
-    letterSpacing: -0.3,
+    color: '#001743',
+    letterSpacing: -0.4,
   },
   viewAllLink: {
     fontSize: 13,
     fontWeight: '700',
-    color: Colors.blue,
+    color: '#4C5FD5',
   },
   filterRow: {
     flexDirection: 'row',
-    gap: Spacing.sm,
-    paddingBottom: Spacing.md,
+    gap: 8,
+    paddingBottom: 16,
   },
   filterPill: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: BorderRadius.full,
-    backgroundColor: Colors.surface,
+    paddingHorizontal: 15,
+    paddingVertical: 9,
+    borderRadius: 9999,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: 'rgba(0, 23, 67, 0.06)',
   },
   filterPillActive: {
-    backgroundColor: Colors.navy,
-    borderColor: Colors.navy,
+    backgroundColor: '#001743',
+    borderColor: '#001743',
   },
   filterPillText: {
     fontSize: 12.5,
     fontWeight: '700',
-    color: Colors.textSecondary,
+    color: '#64748B',
   },
   filterPillTextActive: {
     color: '#FFFFFF',
   },
+
+  // 4. Transaction Cards
   emptyPanel: {
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.lg,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
     borderWidth: 1,
-    borderColor: Colors.borderLight,
-    padding: Spacing.xl,
+    borderColor: 'rgba(0, 23, 67, 0.05)',
+    paddingVertical: 28,
+    paddingHorizontal: 20,
     alignItems: 'center',
-    ...Shadows.sm,
   },
   emptyIconCircle: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: Colors.blueSoft,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#F1F4FB',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: Spacing.sm,
+    marginBottom: 10,
   },
   emptyTitle: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: Colors.navy,
+    fontSize: 14.5,
+    fontWeight: '700',
+    color: '#64748B',
   },
-  emptySub: {
-    fontSize: 12.5,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-    marginTop: 4,
-    lineHeight: 18,
+  txStack: {
+    gap: 10,
   },
-  txLedgerPanel: {
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
-    overflow: 'hidden',
-    ...Shadows.sm,
-  },
-  hairlineH: {
-    height: 1,
-    backgroundColor: Colors.borderLight,
-  },
-  txRow: {
+  txCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 14,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 22,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 23, 67, 0.05)',
+    shadowColor: '#001743',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.03,
+    shadowRadius: 10,
+    elevation: 1,
+    gap: 12,
   },
-  txTypeIndicator: {
-    width: 40,
-    height: 40,
-    borderRadius: 13,
+  txIconSquircle: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: '#F1F4FB',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: Spacing.md,
   },
   txMetaCol: {
     flex: 1,
-    paddingRight: Spacing.sm,
   },
   txTitle: {
     fontSize: 13.5,
     fontWeight: '800',
-    color: Colors.navy,
+    color: '#001743',
   },
-  txSubRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 3,
-  },
-  txCode: {
-    fontSize: 11,
-    color: Colors.textSecondary,
+  txSub: {
+    fontSize: 11.5,
     fontWeight: '600',
-  },
-  txDot: {
-    fontSize: 11,
-    color: Colors.textMuted,
-    marginHorizontal: 5,
-  },
-  txDate: {
-    fontSize: 11,
-    color: Colors.textMuted,
+    color: '#64748B',
+    marginTop: 2,
     fontVariant: ['tabular-nums'],
   },
   txAmountCol: {
     alignItems: 'flex-end',
   },
   txAmount: {
-    fontSize: 14.5,
+    fontSize: 14,
     fontWeight: '800',
     fontVariant: ['tabular-nums'],
+  },
+  txStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 3,
+  },
+  txStatusDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+  },
+  txStatusText: {
+    fontSize: 11,
+    fontWeight: '700',
   },
 });
