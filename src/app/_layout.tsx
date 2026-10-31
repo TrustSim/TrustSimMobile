@@ -39,6 +39,7 @@ export default function RootLayout() {
           <Stack.Screen name="deposit" options={{ headerShown: false, presentation: 'modal' }} />
           <Stack.Screen name="withdraw" options={{ headerShown: false, presentation: 'modal' }} />
           <Stack.Screen name="transactions" options={{ headerShown: false }} />
+          <Stack.Screen name="notifications" options={{ headerShown: false }} />
           <Stack.Screen name="kyc/index" options={{ headerShown: false }} />
           <Stack.Screen name="kyc/camera-front" options={{ headerShown: false }} />
           <Stack.Screen name="kyc/camera-back" options={{ headerShown: false }} />

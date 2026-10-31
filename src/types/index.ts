@@ -507,3 +507,42 @@ export interface SimValuationDto {
   createdDate?: string;
 }
 
+// Notification Types
+export type NotificationType =
+  | 'SYSTEM_ALERT'
+  | 'AUCTION_WON'
+  | 'AUCTION_LOST'
+  | 'AUCTION_SELLER_CONFIRMATION_REQUIRED'
+  | 'AUCTION_RUNNER_UP_OFFERED'
+  | 'AUCTION_DEPOSIT_REFUNDED'
+  | 'AUCTION_DEPOSIT_FORFEITED'
+  | 'AUCTION_FAILED'
+  | 'WALLET_TOPUP_SUCCESS'
+  | 'WALLET_WITHDRAWAL_COMPLETED'
+  | 'TRADE_TRANSFERRING_SIM'
+  | 'CONTRACT_SIGNING_REQUIRED'
+  | 'CONTRACT_FULLY_SIGNED'
+  | 'SELLER_SIGNING_TIMEOUT_AUTO_ENFORCED'
+  | string;
+
+export interface NotificationDto {
+  id: string;
+  userId: string;
+  title: string;
+  content: string;
+  notificationType: NotificationType;
+  referenceType?: string | null;
+  referenceId?: string | null;
+  metadataJson?: string | null;
+  actionUrl?: string | null;
+  isRead: boolean;
+  readAt?: string | null;
+  createdDate: string;
+}
+
+export interface NotificationQueryFilter {
+  isRead?: boolean;
+  pageIndex?: number;
+  pageSize?: number;
+}
+

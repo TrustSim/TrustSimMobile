@@ -22,6 +22,7 @@ import { VerificationStatusBadge } from '../../components/trust/VerificationStat
 import { useAuth } from '../../context/AuthContext';
 import { contractService } from '../../services/contractService';
 import { simService } from '../../services/simService';
+import { notificationService } from '../../services/notificationService';
 import type { SimOwnershipDto, TradeTransactionDto } from '../../types';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -79,12 +80,14 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [activeTrades, setActiveTrades] = useState<TradeTransactionDto[]>([]);
   const [myOwnerships, setMyOwnerships] = useState<SimOwnershipDto[]>([]);
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState<number>(0);
 
   const fetchDashboardData = useCallback(async () => {
     try {
-      const [tradesRes, simsRes] = await Promise.allSettled([
+      const [tradesRes, simsRes, unreadRes] = await Promise.allSettled([
         contractService.getMyContracts({ pageIndex: 1, pageSize: 5 }),
         simService.getMyOwnerships({ pageIndex: 1, pageSize: 20 }),
+        notificationService.getUnreadCount(),
       ]);
 
       if (
@@ -101,6 +104,10 @@ export default function HomeScreen() {
         setMyOwnerships(simsRes.value.data.items);
       } else {
         setMyOwnerships([]);
+      }
+
+      if (unreadRes.status === 'fulfilled' && unreadRes.value.success && typeof unreadRes.value.data === 'number') {
+        setUnreadNotificationCount(unreadRes.value.data);
       }
     } catch {
       setActiveTrades([]);
@@ -288,12 +295,12 @@ export default function HomeScreen() {
 
             <TouchableOpacity
               style={styles.topIconPill}
-              onPress={() => router.push('/(tabs)/account')}
+              onPress={() => router.push('/notifications')}
               activeOpacity={0.8}
               accessibilityLabel="Thông báo"
             >
               <MaterialCommunityIcons name="bell-outline" size={20} color={Colors.navy} />
-              <View style={styles.notificationDot} />
+              {unreadNotificationCount > 0 && <View style={styles.notificationDot} />}
             </TouchableOpacity>
           </View>
         </View>
