@@ -1,13 +1,11 @@
 import React, { useCallback } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import * as ScreenOrientation from 'expo-screen-orientation';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Badge } from '../../components/Badge';
-import { Button } from '../../components/Button';
-import { Card } from '../../components/Card';
-import { Colors, Spacing } from '../../constants/theme';
+import { VerificationStatusBadge } from '../../components/trust/VerificationStatusBadge';
+import { BorderRadius, Colors, Shadows, Spacing } from '../../constants/theme';
 
 export default function KycResultScreen() {
   const router = useRouter();
@@ -18,88 +16,89 @@ export default function KycResultScreen() {
     status: string;
   }>();
 
-  // Guarantee portrait orientation when entering this screen
   useFocusEffect(
     useCallback(() => {
-      ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
+      ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => { });
     }, [])
   );
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Success Icon */}
-        <View style={styles.celebrationCircle}>
-          <Ionicons name="shield-checkmark" size={60} color={Colors.textInverse} />
+        <SafeAreaView edges={['top']} style={styles.safeArea}>
+          <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+            {/* Success Icon */}
+            <View style={styles.celebrationCircle}>
+              <MaterialCommunityIcons name="shield-check" size={56} color="#fff" />
+            </View>
+
+            <Text style={styles.title}>Xác Minh Danh Tính Thành Công</Text>
+            <Text style={styles.subtitle}>
+              Thông tin Căn cước công dân và hình ảnh chân dung đã được đối chiếu trùng khớp.
+            </Text>
+
+        <VerificationStatusBadge
+              status="verified"
+              label="ĐÃ XÁC THỰC CHÍNH CHỦ"
+              style={styles.badge}
+            />
+
+              {/* Thẻ chi tiết thông tin trích xuất */}
+              <View style={styles.infoCard}>
+                <Text style={styles.cardHeader}>THÔNG TIN XÁC THỰC CĂN CƯỚC</Text>
+
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Họ và tên:</Text>
+                  <Text style={styles.infoValBold}>{fullName || '—'}</Text>
+                </View>
+
+                <View style={styles.divider} />
+
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Số CCCD định danh:</Text>
+                  <Text style={styles.infoValBold}>
+                    {identityNumber ? `•••• •••• ${identityNumber.slice(-4)}` : '—'}
+                  </Text>
+                </View>
+
+                <View style={styles.divider} />
+
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Độ tương đồng khuôn mặt:</Text>
+                  <Text style={[styles.infoValBold, { color: Colors.success }]}>
+                    {score ? `${parseFloat(score).toFixed(1)}% (Rất tốt)` : 'Đạt yêu cầu'}
+                  </Text>
+                </View>
+          </View>
+
+            {/* Thẻ thông báo tài khoản sẵn sàng */}
+            <View style={styles.pkiCard}>
+              <View style={styles.pkiHeader}>
+                <MaterialCommunityIcons name="check-decagram" size={20} color={Colors.success} />
+                <Text style={styles.pkiTitle}>Tài Khoản Đã Sẵn Sàng Giao Dịch</Text>
+              </View>
+              <Text style={styles.pkiDesc}>
+                Chứng thư số cá nhân và phương thức bảo mật tài khoản đã được kích hoạt thành công. Bạn đã có thể ký hợp đồng chuyển nhượng SIM an toàn trên hệ thống.
+              </Text>
         </View>
 
-        <Text style={styles.title}>XÁC MINH DANH TÍNH THÀNH CÔNG!</Text>
-        <Text style={styles.subtitle}>
-          Thông tin Căn cước công dân và hình ảnh của bạn đã được đối chiếu chính xác.
-        </Text>
+        {/* Nút hành động */}
+        <TouchableOpacity
+          style={styles.primaryBtn}
+          onPress={() => router.replace('/(tabs)/account')}
+          activeOpacity={0.85}
+        >
+          <MaterialCommunityIcons name="account-outline" size={20} color="#fff" />
+          <Text style={styles.primaryBtnText}>Xem Hồ Sơ Tài Khoản</Text>
+        </TouchableOpacity>
 
-        <Badge
-          status={status || 'VERIFIED'}
-          label="ĐÃ XÁC THỰC CHÍNH CHỦ"
-          style={styles.badge}
-        />
-
-        {/* Extracted Details Card */}
-        <Card style={styles.infoCard}>
-          <Text style={styles.cardHeader}>THÔNG TIN XÁC THỰC CĂN CƯỚC</Text>
-
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Họ và tên chủ thẻ:</Text>
-            <Text style={styles.infoValBold}>{fullName || '—'}</Text>
-          </View>
-
-          <View style={styles.divider} />
-
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Số CCCD định danh:</Text>
-            <Text style={styles.infoValBold}>{identityNumber || '—'}</Text>
-          </View>
-
-          <View style={styles.divider} />
-
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Độ tương đồng khuôn mặt:</Text>
-            <Text style={[styles.infoValBold, { color: Colors.success }]}>
-              {score ? `${parseFloat(score).toFixed(1)}% (Rất tốt)` : 'Đạt yêu cầu'}
-            </Text>
-          </View>
-        </Card>
-
-        {/* Certificate Issuance Notice */}
-        <Card style={styles.pkiCard}>
-          <View style={styles.pkiHeader}>
-            <Ionicons name="shield-checkmark" size={20} color={Colors.primary} />
-            <Text style={styles.pkiTitle}>Tài Khoản Đã Sẵn Sàng Giao Dịch</Text>
-          </View>
-          <Text style={styles.pkiDesc}>
-            Chữ ký số và phương thức bảo mật tài khoản đã được kích hoạt thành công.
-            Bạn có thể tham gia ký hợp đồng mua bán và giao dịch SIM an toàn trên hệ thống.
-          </Text>
-        </Card>
-
-        {/* Action Buttons */}
-        <Button
-          title="VỀ KHO SIM CỦA TÔI"
-          variant="primary"
-          size="lg"
-          onPress={() => router.replace('/(tabs)/sims')}
-          style={styles.actionBtn}
-        />
-
-        <Button
-          title="Về Trang Chủ"
-          variant="ghost"
-          size="md"
+        <TouchableOpacity
+          style={styles.secondaryBtn}
           onPress={() => router.replace('/(tabs)')}
-          style={{ marginTop: Spacing.xs }}
-        />
-      </ScrollView>
-    </SafeAreaView>
+        activeOpacity={0.7}
+        >
+        <Text style={styles.secondaryBtnText}>Về Trang Chủ</Text>
+      </TouchableOpacity>
+    </ScrollView>
+    </SafeAreaView >
   );
 }
 
@@ -109,8 +108,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   scrollContent: {
-    padding: Spacing.lg,
+    padding: Spacing.xl,
     alignItems: 'center',
+    paddingBottom: Spacing.xxxl,
   },
   celebrationCircle: {
     width: 96,
@@ -120,34 +120,34 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: Spacing.lg,
-    marginBottom: Spacing.md,
-    shadowColor: Colors.success,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 14,
-    elevation: 8,
+    marginBottom: Spacing.lg,
   },
   title: {
-    fontSize: 20,
-    fontWeight: '900',
-    color: Colors.text,
+    fontSize: 22,
+    fontWeight: '800',
+    color: Colors.navy,
     textAlign: 'center',
+    marginBottom: Spacing.xs,
   },
   subtitle: {
-    fontSize: 13,
+    fontSize: 14,
     color: Colors.textSecondary,
     textAlign: 'center',
-    marginTop: 4,
-    paddingHorizontal: Spacing.md,
+    lineHeight: 20,
+    marginBottom: Spacing.md,
   },
   badge: {
-    marginTop: Spacing.md,
     marginBottom: Spacing.lg,
   },
   infoCard: {
     width: '100%',
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
     padding: Spacing.lg,
     marginBottom: Spacing.md,
+    ...Shadows.card,
   },
   cardHeader: {
     fontSize: 11,
@@ -159,7 +159,8 @@ const styles = StyleSheet.create({
   infoRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: Spacing.xs,
+    alignItems: 'center',
+    paddingVertical: Spacing.xs + 2,
   },
   infoLabel: {
     fontSize: 13,
@@ -167,8 +168,9 @@ const styles = StyleSheet.create({
   },
   infoValBold: {
     fontSize: 14,
-    fontWeight: '800',
-    color: Colors.text,
+    fontWeight: '700',
+    color: Colors.navy,
+    fontFamily: 'monospace',
   },
   divider: {
     height: 1,
@@ -177,29 +179,55 @@ const styles = StyleSheet.create({
   },
   pkiCard: {
     width: '100%',
-    backgroundColor: 'rgba(30, 58, 138, 0.06)',
-    borderColor: 'rgba(30, 58, 138, 0.2)',
+    backgroundColor: 'rgba(22, 163, 74, 0.06)',
+    borderRadius: BorderRadius.md,
     borderWidth: 1,
+    borderColor: 'rgba(22, 163, 74, 0.18)',
     padding: Spacing.md,
     marginBottom: Spacing.xl,
   },
   pkiHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: Spacing.xs,
     marginBottom: 4,
   },
   pkiTitle: {
     fontSize: 13,
-    fontWeight: '800',
-    color: Colors.primary,
-    marginLeft: Spacing.xs,
+    fontWeight: '700',
+    color: Colors.navy,
   },
   pkiDesc: {
     fontSize: 12,
     color: Colors.textSecondary,
-    lineHeight: 17,
+    lineHeight: 18,
   },
-  actionBtn: {
-    width: '100%',
-  },
-});
+    primaryBtn: {
+      width: '100%',
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      backgroundColor: Colors.blue,
+      borderRadius: BorderRadius.md,
+      minHeight: 52,
+      marginBottom: Spacing.sm,
+    },
+    primaryBtnText: {
+      fontSize: 15,
+      fontWeight: '800',
+      color: '#fff',
+    },
+    secondaryBtn: {
+      width: '100%',
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: BorderRadius.md,
+      minHeight: 44,
+    },
+    secondaryBtnText: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: Colors.textSecondary,
+    },
+  });
