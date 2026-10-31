@@ -1,92 +1,115 @@
 import { Platform } from 'react-native';
 
-// Trust Ledger Design System — Swiss Fintech Minimal
 export const Colors = {
-  // Brand
-  navy: '#0B1F3A',         // Primary trust color — headers, key text
-  blue: '#1666C5',         // Action blue — CTAs, interactive elements
-  amber: '#D99216',        // Trust ID / verification badges ONLY
+  // Primary TrustSim Identity (Synced with Web Frontend #001743 + #E4011E + Gold)
+  primary: '#001743',
+  primaryDark: '#000F2E',
+  primaryLight: '#1E3A8A',
+  accent: '#1D4ED8',
+  accentLight: '#EFF6FF',
+  crimson: '#E4011E',
+  crimsonSoft: '#FFF1F2',
+
+  // Collector & Auction Gold
+  gold: '#D97706',
+  goldBright: '#F59E0B',
+  goldSoft: '#FFFBEB',
+  goldBorder: '#FDE68A',
+
+  // Semantic aliases
+  navy: '#001743',
+  navyMid: '#0A2558',
+  navyLight: '#173775',
+  blue: '#1D4ED8',
+  blueSoft: '#EFF6FF',
+  blueBorder: '#BFDBFE',
+  amber: '#D97706',
   amberLight: '#FEF3C7',
 
-  // Status — only for state indication
-  success: '#16A34A',
-  successLight: '#DCFCE7',
-  danger: '#DC2626',
-  dangerLight: '#FEE2E2',
-  warning: '#D97706',
-  warningLight: '#FEF3C7',
+  // Backgrounds & Surfaces (Warm-Cool Alabaster & Pure White Cards)
+  background: '#F3F5F9',
+  surface: '#FFFFFF',
+  surfaceElevated: '#FFFFFF',
+  surfaceAlt: '#F8FAFC',
+  surfaceMuted: '#EEF2F7',
+  cardBg: '#FFFFFF',
 
-  // Surfaces
-  background: '#F6F8FB',   // App background
-  surface: '#FFFFFF',      // Cards, sheets
-  surfaceAlt: '#F0F4F8',   // Alternate surface, pressed state
-
-  // Borders
-  border: '#E4E9F0',
-  borderLight: '#EEF2F7',
-
-  // Text
-  text: '#0B1F3A',         // Primary text (= navy)
-  textSecondary: '#4B5768',
-  textMuted: '#8C9DB5',
+  // Text Hierarchy
+  text: '#09152B',
+  textPrimary: '#09152B',
+  textSecondary: '#475569',
+  textMuted: '#64748B',
+  textLight: '#94A3B8',
   textInverse: '#FFFFFF',
 
-  // Shadows
-  cardShadow: 'rgba(11, 31, 58, 0.06)',
-  overlay: 'rgba(11, 31, 58, 0.55)',
+  // Status & Trust Indicators
+  success: '#059669',
+  successLight: '#ECFDF5',
+  successBorder: '#A7F3D0',
+  warning: '#D97706',
+  warningLight: '#FFFBEB',
+  warningBorder: '#FDE68A',
+  danger: '#E11D48',
+  dangerLight: '#FFF1F2',
+  dangerBorder: '#FECDD3',
+  info: '#1D4ED8',
+  infoLight: '#EFF6FF',
+  infoBorder: '#BFDBFE',
 
-  // Legacy aliases (keep for backward compat with existing components)
-  primary: '#0B1F3A',
-  primaryDark: '#060F1E',
-  primaryLight: '#1666C5',
-  accent: '#D99216',
-  accentLight: '#FEF3C7',
+  // Borders & Dividers
+  border: '#E2E8F0',
+  borderLight: '#F1F5F9',
+  divider: '#E2E8F0',
 
+  // Overlays
+  overlay: 'rgba(0, 23, 67, 0.55)',
+  glassFill: 'rgba(255, 255, 255, 0.08)',
+  glassBorder: 'rgba(255, 255, 255, 0.14)',
+
+  // Carrier Colors
+  viettel: '#EE0033',
+  viettelSoft: '#FFF0F3',
+  vinaphone: '#0066CC',
+  vinaphoneSoft: '#EFF6FF',
+  mobifone: '#005BAA',
+  mobifoneSoft: '#F0F7FF',
+
+  // Legacy theme hook compatibility
   light: {
-    text: '#0B1F3A',
-    background: '#F6F8FB',
-    surface: '#FFFFFF',
-    border: '#E4E9F0',
-    primary: '#0B1F3A',
-    accent: '#D99216',
-    backgroundElement: '#F0F4F8',
-    backgroundSelected: '#E4E9F0',
-    textSecondary: '#4B5768',
+    text: '#09152B',
+    background: '#F3F5F9',
+    tint: '#001743',
+    icon: '#475569',
+    tabIconDefault: '#64748B',
+    tabIconSelected: '#001743',
   },
   dark: {
-    text: '#F6F8FB',
-    background: '#060F1E',
-    surface: '#0F1E30',
-    border: '#1E3048',
-    primary: '#1666C5',
-    accent: '#D99216',
-    backgroundElement: '#162030',
-    backgroundSelected: '#1E304A',
-    textSecondary: '#8C9DB5',
+    text: '#F8FAFC',
+    background: '#001743',
+    tint: '#FFFFFF',
+    icon: '#94A3B8',
+    tabIconDefault: '#94A3B8',
+    tabIconSelected: '#FFFFFF',
   },
-} as const;
+};
 
-export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
-
-// IBM Plex Sans — system fallback until expo-google-fonts installed
-export const Fonts = Platform.select({
-  ios: {
-    sans: 'System',
-    mono: 'Courier',
-  },
-  android: {
-    sans: 'sans-serif',
-    mono: 'monospace',
-  },
-  default: {
-    sans: 'normal',
-    mono: 'monospace',
-  },
-  web: {
-    sans: "'IBM Plex Sans', system-ui, sans-serif",
-    mono: "'IBM Plex Mono', monospace",
-  },
-});
+export const Fonts = {
+  sans: Platform.select({
+    ios: 'System',
+    android: 'sans-serif',
+    default: 'System',
+  }),
+  medium: Platform.select({
+    ios: 'System',
+    android: 'sans-serif-medium',
+    default: 'System',
+  }),
+  mono: Platform.select({
+    ios: 'Menlo',
+    android: 'monospace',
+    default: 'monospace',
+  }),
+};
 
 export const Spacing = {
   xs: 4,
@@ -95,59 +118,59 @@ export const Spacing = {
   lg: 16,
   xl: 20,
   xxl: 24,
-  xxxl: 32,
-  // Legacy aliases
-  half: 2,
-  one: 4,
-  two: 8,
-  three: 16,
-  four: 24,
-  five: 32,
-  six: 64,
-} as const;
+  xxxl: 36,
+};
 
 export const BorderRadius = {
-  xs: 6,
-  sm: 8,
-  md: 12,
-  lg: 14,
-  xl: 16,
+  xs: 8,
+  sm: 12,
+  md: 16,
+  lg: 20,
+  xl: 24,
   full: 9999,
-} as const;
+};
 
 export const Shadows = {
-  card: {
-    shadowColor: '#0B1F3A',
+  sm: {
+    shadowColor: '#001743',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
+    shadowOpacity: 0.04,
     shadowRadius: 8,
     elevation: 2,
   },
-  modal: {
-    shadowColor: '#0B1F3A',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.12,
-    shadowRadius: 20,
-    elevation: 10,
-  },
-  elevated: {
-    shadowColor: '#0B1F3A',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
+  md: {
+    shadowColor: '#001743',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.07,
+    shadowRadius: 14,
     elevation: 4,
   },
-};
-
-// Touch target minimum — 44dp per HIG / Material
-export const MinTouchTarget = 44;
-
-export const BottomTabInset = Platform.select({ ios: 50, android: 80 }) ?? 0;
-export const MaxContentWidth = 800;
-
-// Motion timing — 180–240ms, state feedback only
-export const Motion = {
-  fast: 180,
-  normal: 220,
-  slow: 300,
+  lg: {
+    shadowColor: '#001743',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.12,
+    shadowRadius: 20,
+    elevation: 7,
+  },
+  card: {
+    shadowColor: '#001743',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  modal: {
+    shadowColor: '#001743',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.14,
+    shadowRadius: 24,
+    elevation: 8,
+  },
+  button: {
+    shadowColor: '#001743',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
+  },
 };

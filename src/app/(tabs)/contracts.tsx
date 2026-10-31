@@ -11,8 +11,11 @@ import {
 import { useFocusEffect, useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { BorderRadius, Colors, Spacing } from '../../constants/theme';
-import { ContractTimeline } from '../../components/trust/ContractTimeline';
+import { BorderRadius, Colors, Shadows, Spacing } from '../../constants/theme';
+import {
+  ContractTimeline,
+  isTradeAwaitingSignature,
+} from '../../components/trust/ContractTimeline';
 import { VerificationStatusBadge } from '../../components/trust/VerificationStatusBadge';
 import { contractService } from '../../services/contractService';
 import { disputeService } from '../../services/disputeService';
@@ -100,57 +103,81 @@ export default function ContractsAndEvidenceScreen() {
         {/* Top Header */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.headerCaption}>HỢP ĐỒNG & BẰNG CHỨNG THỰC ĐỊA</Text>
-            <Text style={styles.pageTitle}>Quá Trình Chuyển Nhượng</Text>
+            <Text style={styles.headerSubText}>Hợp đồng số & Bằng chứng thực địa</Text>
+            <Text style={styles.pageTitle}>Chuyển Nhượng SIM</Text>
+          </View>
+          <View style={styles.escrowProtectionPill}>
+            <MaterialCommunityIcons name="shield-lock" size={14} color={Colors.blue} />
+            <Text style={styles.escrowProtectionText}>Escrow 100%</Text>
           </View>
         </View>
 
-        {/* Segmented Control: Quá trình chuyển nhượng vs Hồ sơ khiếu nại */}
+        {/* Pill Segmented Control */}
         <View style={styles.segmentContainer}>
           <TouchableOpacity
             style={[styles.segmentBtn, segment === 'handover' && styles.segmentBtnActive]}
             onPress={() => setSegment('handover')}
-            activeOpacity={0.8}
+            activeOpacity={0.85}
           >
+            <MaterialCommunityIcons
+              name="file-sign"
+              size={16}
+              color={segment === 'handover' ? '#FFFFFF' : Colors.textSecondary}
+            />
             <Text
               style={[
                 styles.segmentBtnText,
                 segment === 'handover' && styles.segmentBtnTextActive,
               ]}
             >
-              Chuyển nhượng ({contracts.length})
+              Hợp đồng & Sang tên ({contracts.length})
             </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.segmentBtn, segment === 'disputes' && styles.segmentBtnActive]}
             onPress={() => setSegment('disputes')}
-            activeOpacity={0.8}
+            activeOpacity={0.85}
           >
+            <MaterialCommunityIcons
+              name="scale-balance"
+              size={16}
+              color={segment === 'disputes' ? '#FFFFFF' : Colors.textSecondary}
+            />
             <Text
               style={[
                 styles.segmentBtnText,
                 segment === 'disputes' && styles.segmentBtnTextActive,
               ]}
             >
-              Hồ sơ khiếu nại ({disputes.length})
+              Khiếu nại ({disputes.length})
             </Text>
           </TouchableOpacity>
         </View>
 
-        {/* PHÂN MỤC 1: CHUYỂN NHƯỢNG & CHỤP BẰNG CHỨNG BÀN GIAO */}
+        {/* PHÂN MỤC 1: KÝ HỢP ĐỒNG OTP & CHỤP BẰNG CHỨNG BÀN GIAO */}
         {segment === 'handover' && (
           <View>
-            {/* Hướng dẫn quy trình chuyển nhượng & các bước con */}
-            <View style={styles.actionBanner}>
-              <View style={styles.actionBannerLeft}>
-                <Text style={styles.actionBannerTitle}>
-                  Quy trình bàn giao SIM & xử lý sự cố theo từng giao dịch
-                </Text>
-                <Text style={styles.actionBannerSub}>
-                  Chọn giao dịch bên dưới để thực hiện các bước: (1) Ký hợp đồng, (2) Chụp biên nhận sang tên tại nhà mạng, hoặc (3) Chụp bằng chứng khiếu nại nếu phát sinh sự cố trong quá trình chuyển nhượng.
-                </Text>
+            {/* Visual 2-Step Workflow Banner */}
+            <View style={styles.workflowHeroCard}>
+              <View style={styles.workflowStepRow}>
+                <View style={styles.workflowStepPill}>
+                  <View style={styles.workflowStepBadge}>
+                    <Text style={styles.workflowStepBadgeText}>1</Text>
+                  </View>
+                  <Text style={styles.workflowStepTitle}>Ký hợp đồng bằng OTP</Text>
+                </View>
+                <MaterialCommunityIcons name="arrow-right" size={16} color="#94A3B8" />
+                <View style={styles.workflowStepPill}>
+                  <View style={[styles.workflowStepBadge, { backgroundColor: Colors.gold }]}>
+                    <Text style={styles.workflowStepBadgeText}>2</Text>
+                  </View>
+                  <Text style={styles.workflowStepTitle}>Chụp biên nhận sang tên</Text>
+                </View>
               </View>
+              <Text style={styles.workflowHeroDesc}>
+                Tiền ký quỹ (Escrow) được sàn khóa an toàn. Hai bên hoàn tất ký hợp đồng điện tử bằng mã OTP trước khi mở khóa bước chụp bằng chứng sang tên tại điểm giao dịch.
+              </Text>
             </View>
 
             {loading && contracts.length === 0 ? (
@@ -160,82 +187,137 @@ export default function ContractsAndEvidenceScreen() {
               </View>
             ) : contracts.length === 0 ? (
               <View style={styles.emptyPanel}>
-                <MaterialCommunityIcons
-                  name="file-document-outline"
-                  size={34}
-                  color={Colors.textMuted}
-                />
+                <View style={styles.emptyIconCircle}>
+                  <MaterialCommunityIcons
+                    name="file-document-check-outline"
+                    size={28}
+                    color={Colors.blue}
+                  />
+                </View>
                 <Text style={styles.emptyTitle}>Chưa có hợp đồng chuyển nhượng</Text>
                 <Text style={styles.emptyDesc}>
-                  Các giao dịch mua bán SIM đang trong quá trình ký hợp đồng hoặc chờ chụp biên nhận sang tên sẽ hiển thị tại đây.
+                  Các giao dịch mua bán SIM đang trong quá trình ký hợp đồng OTP hoặc chờ chụp biên nhận sang tên sẽ hiển thị tại đây.
                 </Text>
               </View>
             ) : (
-              <View style={styles.listPanel}>
-                {contracts.map((contract, idx) => {
+              <View style={styles.cardsStack}>
+                {contracts.map((contract) => {
                   const id = contract.id;
+                  const awaitingSign = isTradeAwaitingSignature(contract.status);
+                  const isCompleted =
+                    contract.status === 'Completed' || contract.status === 'COMPLETED';
+                  const primaryRoute = awaitingSign
+                    ? `/contract/${id}`
+                    : `/handover/${id}`;
+
                   return (
-                    <View
-                      key={id}
-                      style={[styles.itemBlock, idx > 0 && styles.itemDivider]}
-                    >
+                    <View key={id} style={styles.contractCard}>
                       <TouchableOpacity
-                        onPress={() => router.push(`/handover/${id}`)}
-                        activeOpacity={0.75}
+                        onPress={() => router.push(primaryRoute as any)}
+                        activeOpacity={0.8}
                       >
-                        <View style={styles.itemTopRow}>
-                          <View>
+                        {/* Top Badge Row */}
+                        <View style={styles.cardHeaderRow}>
+                          <View style={styles.codeRow}>
                             <Text style={styles.refCode}>
                               #{contract.tradeTransactionCode || id.slice(0, 8)}
                             </Text>
+                          </View>
+                          <VerificationStatusBadge
+                            status={
+                              awaitingSign
+                                ? 'checking'
+                                : isCompleted
+                                ? 'verified'
+                                : 'pending'
+                            }
+                            label={
+                              awaitingSign
+                                ? 'Bước 1: Chờ ký OTP'
+                                : isCompleted
+                                ? 'Đã hoàn tất'
+                                : 'Bước 2: Chờ sang tên'
+                            }
+                            size="sm"
+                          />
+                        </View>
+
+                        {/* Middle SIM Plate & Escrow Amount */}
+                        <View style={styles.simDealBanner}>
+                          <View style={styles.simChipIconBox}>
+                            <MaterialCommunityIcons name="sim" size={20} color={Colors.gold} />
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.simCaption}>Tài sản chuyển nhượng</Text>
                             <Text style={styles.simPhone}>
-                              {contract.simPhoneNumber || 'SIM Chuyển nhượng'}
+                              {contract.simPhoneNumber || 'SIM Đấu giá'}
                             </Text>
                           </View>
-                          <View style={styles.amountCol}>
-                            <Text style={styles.amountVal}>
+                          <View style={styles.escrowCol}>
+                            <Text style={styles.escrowLabel}>Tiền ký quỹ (Escrow)</Text>
+                            <Text style={styles.escrowVal}>
                               {(contract.escrowAmount ?? 0).toLocaleString('vi-VN')} ₫
                             </Text>
-                            <Text style={styles.amountSub}>Tiền ký quỹ</Text>
                           </View>
                         </View>
 
                         <ContractTimeline
-                          status={contract.status || 'PendingEscrow'}
+                          status={contract.status || 'PendingSignature'}
                           compact
                           style={styles.timelineRow}
                         />
                       </TouchableOpacity>
 
-                      {/* Thanh công cụ của giao dịch: Hợp đồng | Tiến trình chuyển nhượng (gồm Chụp biên nhận & Khiếu nại) */}
+                      {/* Action Buttons */}
                       <View style={styles.actionRow}>
-                        <TouchableOpacity
-                          style={styles.secondaryBtn}
-                          onPress={() => router.push(`/contract/${id}`)}
-                          activeOpacity={0.75}
-                        >
-                          <MaterialCommunityIcons
-                            name="file-document-outline"
-                            size={15}
-                            color={Colors.navy}
-                          />
-                          <Text style={styles.secondaryBtnText}>Hợp đồng</Text>
-                        </TouchableOpacity>
+                        {awaitingSign ? (
+                          <TouchableOpacity
+                            style={[styles.signOtpPrimaryBtn, { flex: 1 }]}
+                            onPress={() => router.push(`/contract/${id}`)}
+                            activeOpacity={0.88}
+                          >
+                            <MaterialCommunityIcons
+                              name="shield-key-outline"
+                              size={17}
+                              color="#FFFFFF"
+                            />
+                            <Text style={styles.primaryBtnText}>
+                              Đọc & Ký Hợp Đồng Bằng OTP
+                            </Text>
+                          </TouchableOpacity>
+                        ) : (
+                          <>
+                            <TouchableOpacity
+                              style={styles.secondaryBtn}
+                              onPress={() => router.push(`/contract/${id}`)}
+                              activeOpacity={0.8}
+                            >
+                              <MaterialCommunityIcons
+                                name="file-check-outline"
+                                size={16}
+                                color={Colors.navy}
+                              />
+                              <Text style={styles.secondaryBtnText}>Hợp đồng (Đã ký)</Text>
+                            </TouchableOpacity>
 
-                        <TouchableOpacity
-                          style={styles.primaryBtn}
-                          onPress={() => router.push(`/handover/${id}`)}
-                          activeOpacity={0.85}
-                        >
-                          <MaterialCommunityIcons
-                            name="camera-document"
-                            size={15}
-                            color="#fff"
-                          />
-                          <Text style={styles.primaryBtnText}>
-                            Tiến trình & Bằng chứng sang tên
-                          </Text>
-                        </TouchableOpacity>
+                            <TouchableOpacity
+                              style={styles.primaryBtn}
+                              onPress={() => router.push(`/handover/${id}`)}
+                              activeOpacity={0.88}
+                            >
+                              <MaterialCommunityIcons
+                                name="camera-document"
+                                size={16}
+                                color="#FFFFFF"
+                              />
+                              <Text style={styles.primaryBtnText}>
+                                {isCompleted
+                                  ? 'Xem biên nhận'
+                                  : 'Chụp bằng chứng sang tên'}
+                              </Text>
+                            </TouchableOpacity>
+                          </>
+                        )}
                       </View>
                     </View>
                   );
@@ -245,16 +327,23 @@ export default function ContractsAndEvidenceScreen() {
           </View>
         )}
 
-        {/* PHÂN MỤC 2: THEO DÕI HỒ SƠ KHIẾU NẠI CỦA CÁC GIAO DỊCH CHUYỂN NHƯỢNG */}
+        {/* PHÂN MỤC 2: THEO DÕI HỒ SƠ KHIẾU NẠI */}
         {segment === 'disputes' && (
           <View>
-            <View style={styles.actionBanner}>
-              <View style={styles.actionBannerLeft}>
-                <Text style={styles.actionBannerTitle}>
-                  Khiếu nại được tạo trực tiếp từ giao dịch đang chuyển nhượng
+            <View style={styles.disputeInfoCard}>
+              <View style={styles.disputeInfoIcon}>
+                <MaterialCommunityIcons
+                  name="shield-alert-outline"
+                  size={20}
+                  color={Colors.crimson}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.disputeInfoTitle}>
+                  Khiếu nại gắn trực tiếp với từng giao dịch chuyển nhượng
                 </Text>
-                <Text style={styles.actionBannerSub}>
-                  Để gửi bằng chứng khiếu nại và khóa giải ngân ký quỹ, vui lòng mở chi tiết giao dịch trong mục &ldquo;Chuyển nhượng&rdquo; và chọn bước Báo cáo sự cố.
+                <Text style={styles.disputeInfoSub}>
+                  Để gửi ảnh bằng chứng sự cố và tạm đóng băng giải ngân ký quỹ, hãy mở giao dịch trong mục &ldquo;Hợp đồng & Sang tên&rdquo; và chọn Báo cáo sự cố.
                 </Text>
               </View>
             </View>
@@ -266,53 +355,51 @@ export default function ContractsAndEvidenceScreen() {
               </View>
             ) : disputes.length === 0 ? (
               <View style={styles.emptyPanel}>
-                <MaterialCommunityIcons
-                  name="shield-check-outline"
-                  size={34}
-                  color={Colors.textMuted}
-                />
+                <View style={[styles.emptyIconCircle, { backgroundColor: Colors.successLight }]}>
+                  <MaterialCommunityIcons
+                    name="shield-check-outline"
+                    size={28}
+                    color={Colors.success}
+                  />
+                </View>
                 <Text style={styles.emptyTitle}>Không có khiếu nại phát sinh</Text>
                 <Text style={styles.emptyDesc}>
-                  Các giao dịch chuyển nhượng của bạn hiện đang diễn ra bình thường. Nếu gặp sự cố sang tên ở bất kỳ giao dịch nào, hãy vào tiến trình chuyển nhượng của giao dịch đó để chụp bằng chứng khiếu nại.
+                  Tất cả hợp đồng chuyển nhượng của bạn đang diễn ra an toàn. Nếu phát sinh tranh chấp tại điểm giao dịch, hãy vào chi tiết giao dịch đó để gửi bằng chứng.
                 </Text>
                 <TouchableOpacity
-                  style={[styles.secondaryBtn, { marginTop: Spacing.md, alignSelf: 'stretch' }]}
+                  style={styles.switchBackBtn}
                   onPress={() => setSegment('handover')}
-                  activeOpacity={0.8}
+                  activeOpacity={0.85}
                 >
                   <MaterialCommunityIcons name="swap-horizontal" size={16} color={Colors.navy} />
-                  <Text style={styles.secondaryBtnText}>
-                    Xem danh sách giao dịch chuyển nhượng
+                  <Text style={styles.switchBackBtnText}>
+                    Quay lại danh sách Hợp đồng & Sang tên
                   </Text>
                 </TouchableOpacity>
               </View>
             ) : (
-              <View style={styles.listPanel}>
-                {disputes.map((dsp, i) => {
+              <View style={styles.cardsStack}>
+                {disputes.map((dsp) => {
                   const dateStr = dsp.createdDate
                     ? new Date(dsp.createdDate).toLocaleDateString('vi-VN', {
-                      day: '2-digit',
-                      month: '2-digit',
-                      year: 'numeric',
-                    })
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric',
+                      })
                     : '';
                   return (
-                    <View
-                      key={dsp.id}
-                      style={[styles.itemBlock, i > 0 && styles.itemDivider]}
-                    >
-                      <View style={styles.itemTopRow}>
-                        <View style={{ flex: 1, paddingRight: Spacing.sm }}>
-                          <Text style={styles.refCode}>
-                            MÃ KHIẾU NẠI: #{dsp.id.slice(0, 8).toUpperCase()}
-                          </Text>
-                          <Text style={styles.disputeReasonText}>{dsp.reason}</Text>
-                          {dateStr ? (
-                            <Text style={styles.disputeDateText}>Ngày gửi: {dateStr}</Text>
-                          ) : null}
-                        </View>
+                    <View key={dsp.id} style={styles.contractCard}>
+                      <View style={styles.cardHeaderRow}>
+                        <Text style={styles.refCode}>
+                          KHIẾU NẠI #{dsp.id.slice(0, 8).toUpperCase()}
+                        </Text>
                         {renderDisputeStatusBadge(dsp.status)}
                       </View>
+
+                      <Text style={styles.disputeReasonText}>{dsp.reason}</Text>
+                      {dateStr ? (
+                        <Text style={styles.disputeDateText}>Ngày gửi hồ sơ: {dateStr}</Text>
+                      ) : null}
 
                       {dsp.adminResolutionNotes ? (
                         <View style={styles.resolutionBox}>
@@ -326,30 +413,26 @@ export default function ContractsAndEvidenceScreen() {
                           <TouchableOpacity
                             style={styles.secondaryBtn}
                             onPress={() => router.push(`/handover/${dsp.tradeTransactionId}`)}
-                            activeOpacity={0.75}
+                            activeOpacity={0.8}
                           >
                             <MaterialCommunityIcons
                               name="file-eye-outline"
                               size={15}
                               color={Colors.navy}
                             />
-                            <Text style={styles.secondaryBtnText}>
-                              Xem tiến trình chuyển nhượng
-                            </Text>
+                            <Text style={styles.secondaryBtnText}>Tiến trình sang tên</Text>
                           </TouchableOpacity>
                           <TouchableOpacity
-                            style={styles.secondaryBtn}
+                            style={styles.primaryBtn}
                             onPress={() => router.push(`/dispute/${dsp.tradeTransactionId}`)}
-                            activeOpacity={0.75}
+                            activeOpacity={0.85}
                           >
                             <MaterialCommunityIcons
                               name="camera-plus-outline"
                               size={15}
-                              color={Colors.navy}
+                              color="#FFFFFF"
                             />
-                            <Text style={styles.secondaryBtnText}>
-                              Bổ sung ảnh bằng chứng
-                            </Text>
+                            <Text style={styles.primaryBtnText}>Bổ sung bằng chứng</Text>
                           </TouchableOpacity>
                         </View>
                       ) : null}
@@ -371,185 +454,256 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   scroll: {
-    padding: Spacing.lg,
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.md,
     paddingBottom: Spacing.xxxl,
   },
   header: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: Spacing.lg,
   },
-  headerCaption: {
-    fontSize: 10,
+  headerSubText: {
+    fontSize: 12,
     fontWeight: '700',
     color: Colors.textSecondary,
-    letterSpacing: 0.8,
     marginBottom: 2,
   },
   pageTitle: {
-    fontSize: 22,
+    fontSize: 23,
     fontWeight: '800',
     color: Colors.navy,
+    letterSpacing: -0.5,
   },
-  quickDisputeBtn: {
+  escrowProtectionPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: Colors.surface,
+    backgroundColor: Colors.blueSoft,
     borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: BorderRadius.sm,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 8,
-    minHeight: 38,
+    borderColor: Colors.blueBorder,
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.full,
   },
-  quickDisputeText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.danger,
+  escrowProtectionText: {
+    fontSize: 11.5,
+    fontWeight: '800',
+    color: Colors.blue,
   },
   segmentContainer: {
     flexDirection: 'row',
-    backgroundColor: Colors.surfaceAlt,
-    borderRadius: BorderRadius.sm,
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.full,
     borderWidth: 1,
     borderColor: Colors.border,
-    padding: 3,
+    padding: 4,
     marginBottom: Spacing.lg,
+    ...Shadows.sm,
   },
   segmentBtn: {
     flex: 1,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 9,
-    borderRadius: 6,
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: BorderRadius.full,
   },
   segmentBtnActive: {
-    backgroundColor: Colors.surface,
+    backgroundColor: Colors.navy,
   },
   segmentBtnText: {
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: 12.5,
+    fontWeight: '700',
     color: Colors.textSecondary,
   },
   segmentBtnTextActive: {
-    color: Colors.navy,
+    color: '#FFFFFF',
     fontWeight: '800',
   },
-  actionBanner: {
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.sm,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderLeftWidth: 3,
-    borderLeftColor: Colors.navy,
-    padding: Spacing.md,
-    marginBottom: Spacing.md,
+  workflowHeroCard: {
+    backgroundColor: Colors.navy,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    marginBottom: Spacing.lg,
+    ...Shadows.md,
   },
-  actionBannerLeft: {
-    flex: 1,
+  workflowStepRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: Spacing.sm,
   },
-  actionBannerTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: Colors.navy,
+  workflowStepPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.full,
   },
-  actionBannerSub: {
+  workflowStepBadge: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: Colors.blue,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  workflowStepBadgeText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  workflowStepTitle: {
     fontSize: 12,
-    color: Colors.textSecondary,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  workflowHeroDesc: {
+    fontSize: 12,
+    color: '#CBD5E1',
     lineHeight: 17,
-    marginTop: 2,
   },
   emptyPanel: {
     backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.md,
+    borderRadius: BorderRadius.lg,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: Colors.borderLight,
     padding: Spacing.xl,
     alignItems: 'center',
+    ...Shadows.sm,
+  },
+  emptyIconCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: Colors.blueSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.sm,
   },
   emptyTitle: {
-    fontSize: 14,
-    fontWeight: '700',
+    fontSize: 15,
+    fontWeight: '800',
     color: Colors.navy,
-    marginTop: Spacing.sm,
   },
   emptyDesc: {
-    fontSize: 12,
+    fontSize: 12.5,
     color: Colors.textSecondary,
     textAlign: 'center',
     lineHeight: 18,
     marginTop: 4,
   },
-  listPanel: {
+  cardsStack: {
+    gap: Spacing.md,
+  },
+  contractCard: {
     backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.md,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
     borderWidth: 1,
-    borderColor: Colors.border,
-    overflow: 'hidden',
+    borderColor: Colors.borderLight,
+    ...Shadows.md,
   },
-  itemBlock: {
-    padding: Spacing.md,
-  },
-  itemDivider: {
-    borderTopWidth: 1,
-    borderTopColor: Colors.borderLight,
-  },
-  itemTopRow: {
+  cardHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+  },
+  codeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   refCode: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: Colors.textSecondary,
-    fontFamily: 'monospace',
+    fontSize: 12,
+    fontWeight: '800',
+    color: Colors.textMuted,
+  },
+  simDealBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    backgroundColor: Colors.surfaceAlt,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+  },
+  simChipIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: Colors.goldSoft,
+    borderWidth: 1,
+    borderColor: Colors.goldBorder,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  simCaption: {
+    fontSize: 10.5,
+    fontWeight: '600',
+    color: Colors.textMuted,
   },
   simPhone: {
-    fontSize: 17,
+    fontSize: 19,
     fontWeight: '800',
     color: Colors.navy,
-    marginTop: 2,
     fontVariant: ['tabular-nums'],
+    letterSpacing: -0.3,
   },
-  amountCol: {
+  escrowCol: {
     alignItems: 'flex-end',
   },
-  amountVal: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: Colors.navy,
-    fontVariant: ['tabular-nums'],
-  },
-  amountSub: {
-    fontSize: 11,
+  escrowLabel: {
+    fontSize: 10.5,
+    fontWeight: '600',
     color: Colors.textMuted,
-    marginTop: 1,
+  },
+  escrowVal: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: Colors.blue,
+    fontVariant: ['tabular-nums'],
+    marginTop: 2,
   },
   timelineRow: {
-    marginTop: Spacing.sm,
-    marginBottom: Spacing.sm,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.md,
   },
   actionRow: {
     flexDirection: 'row',
-    gap: Spacing.xs,
-    marginTop: Spacing.xs,
+    gap: Spacing.sm,
+  },
+  signOtpPrimaryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    backgroundColor: Colors.navy,
+    borderRadius: BorderRadius.sm,
+    minHeight: 44,
+    paddingHorizontal: Spacing.md,
   },
   secondaryBtn: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 5,
-    backgroundColor: Colors.surfaceAlt,
-    borderRadius: BorderRadius.xs,
-    minHeight: 38,
+    gap: 6,
+    backgroundColor: Colors.surfaceMuted,
+    borderRadius: BorderRadius.sm,
+    minHeight: 42,
     paddingHorizontal: Spacing.sm,
   },
   secondaryBtnText: {
-    fontSize: 12,
+    fontSize: 12.5,
     fontWeight: '700',
     color: Colors.navy,
   },
@@ -558,78 +712,96 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 5,
+    gap: 6,
     backgroundColor: Colors.blue,
-    borderRadius: BorderRadius.xs,
-    minHeight: 38,
+    borderRadius: BorderRadius.sm,
+    minHeight: 42,
     paddingHorizontal: Spacing.sm,
   },
   primaryBtnText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#fff',
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
-  dangerOutlineBtn: {
+  disputeInfoCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.sm,
+    backgroundColor: Colors.crimsonSoft,
+    borderWidth: 1,
+    borderColor: Colors.dangerBorder,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+  },
+  disputeInfoIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: '#FFE4E6',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: BorderRadius.xs,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    paddingHorizontal: 10,
-    minHeight: 38,
   },
-  dangerOutlineBtnText: {
+  disputeInfoTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#9F1239',
+  },
+  disputeInfoSub: {
     fontSize: 12,
-    fontWeight: '600',
-    color: Colors.danger,
+    color: '#BE123C',
+    lineHeight: 17,
+    marginTop: 2,
   },
-  newDisputeCta: {
+  switchBackBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    backgroundColor: Colors.navy,
-    borderRadius: BorderRadius.sm,
-    minHeight: 48,
-    marginBottom: Spacing.md,
+    gap: 6,
+    backgroundColor: Colors.surfaceMuted,
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    marginTop: Spacing.md,
   },
-  newDisputeCtaText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#fff',
+  switchBackBtnText: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: Colors.navy,
   },
   disputeReasonText: {
-    fontSize: 14,
-    fontWeight: '700',
+    fontSize: 15,
+    fontWeight: '800',
     color: Colors.navy,
-    marginTop: 4,
-    lineHeight: 19,
+    lineHeight: 21,
   },
   disputeDateText: {
-    fontSize: 11,
+    fontSize: 12,
     color: Colors.textSecondary,
-    marginTop: 3,
+    marginTop: 4,
   },
   resolutionBox: {
     backgroundColor: Colors.surfaceAlt,
-    borderRadius: BorderRadius.xs,
-    padding: Spacing.sm,
-    marginTop: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+    padding: Spacing.md,
+    marginTop: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
   },
   resolutionLabel: {
-    fontSize: 11,
-    fontWeight: '700',
+    fontSize: 11.5,
+    fontWeight: '800',
     color: Colors.navy,
   },
   resolutionText: {
-    fontSize: 12,
+    fontSize: 12.5,
     color: Colors.textSecondary,
-    marginTop: 2,
-    lineHeight: 17,
+    marginTop: 3,
+    lineHeight: 18,
   },
   disputeActionRow: {
     flexDirection: 'row',
-    gap: Spacing.xs,
-    marginTop: Spacing.sm,
+    gap: Spacing.sm,
+    marginTop: Spacing.md,
   },
 });

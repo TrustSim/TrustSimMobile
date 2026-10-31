@@ -5,7 +5,7 @@
 import React from 'react';
 import { StyleSheet, Text, View, ViewStyle } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Colors, Spacing } from '../../constants/theme';
+import { BorderRadius, Colors, Spacing } from '../../constants/theme';
 import type { TradeTransactionStatus } from '../../types';
 
 export interface ContractStep {
@@ -42,10 +42,6 @@ export const CONTRACT_STEPS: ContractStep[] = [
   },
 ];
 
-/**
- * Kiểm tra xem giao dịch còn đang ở bước Ký quỹ hoặc Chờ ký hợp đồng bằng OTP hay không.
- * Nếu đúng, bước chính tiếp theo phải là Ký hợp đồng (/contract/[tradeId]) chứ chưa tới bước Chụp bằng chứng (/handover/[tradeId]).
- */
 export function isTradeAwaitingSignature(status?: TradeTransactionStatus | string | null): boolean {
   if (!status) return true;
   const s = String(status).trim();
@@ -61,7 +57,6 @@ export function isTradeAwaitingSignature(status?: TradeTransactionStatus | strin
   );
 }
 
-// Map TradeTransactionStatus to step index
 export function statusToStepIndex(status: TradeTransactionStatus | string): number {
   const s = String(status || '').trim();
   if (s.startsWith('Cancelled') || s === 'CANCELLED' || s === 'Disputed' || s === 'DISPUTED') {
@@ -91,7 +86,6 @@ export function statusToStepIndex(status: TradeTransactionStatus | string): numb
 
 interface ContractTimelineProps {
   status: TradeTransactionStatus | string;
-  /** Compact mode — smaller and horizontal for list items */
   compact?: boolean;
   style?: ViewStyle;
 }
@@ -104,33 +98,76 @@ export function ContractTimeline({ status, compact = false, style }: ContractTim
 
   if (compact) {
     return (
-      <View style={[styles.compactRow, style]}>
-        {CONTRACT_STEPS.map((step, i) => {
-          const isDone = !isCancelled && i < currentIndex;
-          const isActive = i === currentIndex && !isCancelled;
-          return (
-            <React.Fragment key={step.key}>
-              {i > 0 && (
-                <View style={[styles.compactLine, isDone && styles.compactLineDone]} />
-              )}
-              <View
-                style={[
-                  styles.compactDot,
-                  isDone && styles.compactDotDone,
-                  isActive && styles.compactDotActive,
-                  isCancelled && styles.compactDotCancelled,
-                ]}
-              />
-            </React.Fragment>
-          );
-        })}
-        <Text style={styles.compactLabel}>
-          {isCancelled
-            ? isDisputed
-              ? 'Đang khiếu nại tranh chấp'
-              : 'Đã hủy giao dịch'
-            : CONTRACT_STEPS[Math.max(0, currentIndex)]?.label}
-        </Text>
+      <View style={[styles.compactContainer, style]}>
+        <View style={styles.compactTrackRow}>
+          {CONTRACT_STEPS.map((step, i) => {
+            const isDone = !isCancelled && i < currentIndex;
+            const isActive = i === currentIndex && !isCancelled;
+            return (
+              <React.Fragment key={step.key}>
+                {i > 0 && (
+                  <View style={[styles.compactLine, isDone && styles.compactLineDone]} />
+                )}
+                <View
+                  style={[
+                    styles.compactDot,
+                    isDone && styles.compactDotDone,
+                    isActive && styles.compactDotActive,
+                    isCancelled && styles.compactDotCancelled,
+                  ]}
+                >
+                  {isDone && (
+                    <MaterialCommunityIcons name="check" size={9} color="#FFFFFF" />
+                  )}
+                </View>
+              </React.Fragment>
+            );
+          })}
+        </View>
+        <View
+          style={[
+            styles.compactPill,
+            isCancelled
+              ? styles.compactPillDanger
+              : currentIndex === 4
+              ? styles.compactPillSuccess
+              : styles.compactPillInfo,
+          ]}
+        >
+          <View
+            style={[
+              styles.compactPillDot,
+              {
+                backgroundColor: isCancelled
+                  ? Colors.danger
+                  : currentIndex === 4
+                  ? Colors.success
+                  : Colors.blue,
+              },
+            ]}
+          />
+          <Text
+            style={[
+              styles.compactLabel,
+              {
+                color: isCancelled
+                  ? Colors.danger
+                  : currentIndex === 4
+                  ? Colors.success
+                  : Colors.blue,
+              },
+            ]}
+            numberOfLines={1}
+          >
+            {isCancelled
+              ? isDisputed
+                ? 'Đang khiếu nại'
+                : 'Đã hủy'
+              : `Bước ${Math.max(1, currentIndex + 1)}/5 · ${
+                  CONTRACT_STEPS[Math.max(0, currentIndex)]?.label
+                }`}
+          </Text>
+        </View>
       </View>
     );
   }
@@ -139,7 +176,7 @@ export function ContractTimeline({ status, compact = false, style }: ContractTim
     <View style={[styles.container, style]}>
       {isCancelled && (
         <View style={styles.cancelledBanner}>
-          <MaterialCommunityIcons name="cancel" size={16} color={Colors.danger} />
+          <MaterialCommunityIcons name="alert-octagon" size={16} color={Colors.danger} />
           <Text style={styles.cancelledText}>
             {isDisputed ? 'Giao dịch đang tranh chấp' : 'Hợp đồng đã bị hủy'}
           </Text>
@@ -153,7 +190,6 @@ export function ContractTimeline({ status, compact = false, style }: ContractTim
 
         return (
           <View key={step.key} style={styles.stepRow}>
-            {/* Connector line */}
             <View style={styles.stepLeft}>
               <View
                 style={[
@@ -164,7 +200,7 @@ export function ContractTimeline({ status, compact = false, style }: ContractTim
                 ]}
               >
                 {isDone ? (
-                  <MaterialCommunityIcons name="check" size={12} color="#fff" />
+                  <MaterialCommunityIcons name="check" size={13} color="#fff" />
                 ) : isActive ? (
                   <View style={styles.dotInner} />
                 ) : null}
@@ -174,7 +210,6 @@ export function ContractTimeline({ status, compact = false, style }: ContractTim
               )}
             </View>
 
-            {/* Content */}
             <View style={[styles.stepContent, !isLast && styles.stepContentGap]}>
               <Text
                 style={[
@@ -197,7 +232,7 @@ export function ContractTimeline({ status, compact = false, style }: ContractTim
   );
 }
 
-const DOT_SIZE = 22;
+const DOT_SIZE = 24;
 const CONNECTOR_WIDTH = 2;
 
 const styles = StyleSheet.create({
@@ -208,14 +243,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.dangerLight,
-    borderRadius: 8,
+    borderRadius: BorderRadius.sm,
     padding: Spacing.sm,
     marginBottom: Spacing.md,
     gap: Spacing.xs,
+    borderWidth: 1,
+    borderColor: Colors.dangerBorder,
   },
   cancelledText: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '700',
     color: Colors.danger,
   },
   stepRow: {
@@ -240,7 +277,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.success,
   },
   dotActive: {
-    backgroundColor: Colors.surface,
+    backgroundColor: Colors.blueSoft,
     borderColor: Colors.blue,
     borderWidth: 2,
   },
@@ -258,8 +295,8 @@ const styles = StyleSheet.create({
     width: CONNECTOR_WIDTH,
     flex: 1,
     minHeight: 24,
-    backgroundColor: Colors.borderLight,
-    marginVertical: 2,
+    backgroundColor: Colors.border,
+    marginVertical: 3,
   },
   connectorDone: {
     backgroundColor: Colors.success,
@@ -267,7 +304,6 @@ const styles = StyleSheet.create({
   stepContent: {
     flex: 1,
     paddingLeft: Spacing.md,
-    paddingBottom: 0,
   },
   stepContentGap: {
     paddingBottom: Spacing.lg,
@@ -282,55 +318,90 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.textSecondary,
     marginTop: 2,
-    lineHeight: 16,
+    lineHeight: 17,
   },
   stepLabelActive: {
-    color: Colors.blue,
-    fontWeight: '700',
+    color: Colors.navy,
+    fontWeight: '800',
   },
   stepLabelDone: {
     color: Colors.success,
+    fontWeight: '700',
   },
   stepLabelMuted: {
     color: Colors.textMuted,
   },
-  // Compact
-  compactRow: {
+  compactContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.sm,
+  },
+  compactTrackRow: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
   },
   compactDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: Colors.border,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: Colors.surfaceMuted,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   compactDotDone: {
     backgroundColor: Colors.success,
+    borderColor: Colors.success,
   },
   compactDotActive: {
     backgroundColor: Colors.blue,
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    borderColor: Colors.blueBorder,
+    borderWidth: 2.5,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
   },
   compactDotCancelled: {
     backgroundColor: Colors.danger,
+    borderColor: Colors.danger,
   },
   compactLine: {
     flex: 1,
-    height: 2,
-    backgroundColor: Colors.borderLight,
+    height: 2.5,
+    backgroundColor: Colors.border,
     marginHorizontal: 2,
+    borderRadius: 2,
   },
   compactLineDone: {
     backgroundColor: Colors.success,
   },
+  compactPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.full,
+  },
+  compactPillInfo: {
+    backgroundColor: Colors.blueSoft,
+  },
+  compactPillSuccess: {
+    backgroundColor: Colors.successLight,
+  },
+  compactPillDanger: {
+    backgroundColor: Colors.dangerLight,
+  },
+  compactPillDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 99,
+  },
   compactLabel: {
     fontSize: 11,
-    color: Colors.textSecondary,
-    fontWeight: '600',
-    marginLeft: Spacing.sm,
-    flexShrink: 1,
+    fontWeight: '700',
   },
 });

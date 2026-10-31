@@ -3,7 +3,7 @@ import { StyleSheet, Text, TouchableOpacity, View, ViewStyle } from 'react-nativ
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Colors } from '../constants/theme';
+import { BorderRadius, Colors, Shadows } from '../constants/theme';
 
 export type NavTabId = 'home' | 'sims' | 'contracts' | 'wallet' | 'account' | 'none';
 
@@ -64,8 +64,8 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
 }) => {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const bottomInset = Math.max(insets.bottom, 8);
-  const tabHeight = 56 + bottomInset;
+  const bottomInset = Math.max(insets.bottom, 10);
+  const tabHeight = 64 + bottomInset;
 
   const handleTabPress = (route: string) => {
     router.replace(route as any);
@@ -99,11 +99,13 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
               accessibilityState={{ selected: isActive }}
               accessibilityLabel={tab.label}
             >
-              <MaterialCommunityIcons name={iconName} size={22} color={tintColor} />
+              <View style={[styles.iconPill, isActive && styles.iconPillActive]}>
+                <MaterialCommunityIcons name={iconName} size={21} color={tintColor} />
+              </View>
               <Text
                 style={[
                   styles.tabLabel,
-                  { color: tintColor },
+                  { color: tintColor, fontWeight: isActive ? '800' : '600' },
                 ]}
                 numberOfLines={1}
               >
@@ -121,10 +123,9 @@ const styles = StyleSheet.create({
   container: {
     backgroundColor: Colors.surface,
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
+    borderTopColor: Colors.borderLight,
     paddingTop: 6,
-    elevation: 0,
-    shadowOpacity: 0,
+    ...Shadows.md,
   },
   innerRow: {
     flex: 1,
@@ -136,11 +137,20 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 3,
+    gap: 2,
+  },
+  iconPill: {
+    width: 44,
+    height: 28,
+    borderRadius: BorderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconPillActive: {
+    backgroundColor: '#E8EFFD',
   },
   tabLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.1,
+    fontSize: 10.5,
+    letterSpacing: -0.1,
   },
 });

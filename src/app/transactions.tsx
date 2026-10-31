@@ -2,363 +2,323 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
-  Modal,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Badge } from '../components/Badge';
-import { Button } from '../components/Button';
-import { Card } from '../components/Card';
-import { Header } from '../components/Header';
 import { BottomNavBar } from '../components/BottomNavBar';
+import { Header } from '../components/Header';
+import { VerificationStatusBadge } from '../components/trust/VerificationStatusBadge';
 import { BorderRadius, Colors, Spacing } from '../constants/theme';
+import { useAuth } from '../context/AuthContext';
 import { walletService } from '../services/walletService';
-import { StatementItemDto, WalletTransactionDto } from '../types';
+import {
+  SortOrder,
+  StatementItemDto,
+  UnifiedStatementQueryFilter,
+  WalletTransactionSortBy,
+} from '../types';
+
+type SourceFilterKey = 'ALL' | 'WALLET' | 'AUCTION_DEPOSIT' | 'ESCROW' | 'COMPENSATION';
+
+const SOURCE_FILTERS: { key: SourceFilterKey; label: string }[] = [
+  { key: 'ALL', label: 'Tất cả sao kê' },
+  { key: 'WALLET', label: 'Nạp & Rút tiền' },
+  { key: 'AUCTION_DEPOSIT', label: 'Tiền cọc đấu giá' },
+  { key: 'ESCROW', label: 'Tiền ký quỹ (Escrow)' },
+  { key: 'COMPENSATION', label: 'Tiền bồi thường' },
+];
+
+function getStatementTitle(type: string, description?: string): string {
+  switch (type) {
+    case 'TOP_UP':
+    case 'TOP_UP_CREDIT':
+      return 'Nạp tiền vào ví (VietQR)';
+    case 'WITHDRAW':
+      return 'Rút tiền về ngân hàng';
+    case 'AUCTION_DEPOSIT_LOCK':
+      return 'Tạm khóa tiền đặt cọc đấu giá';
+    case 'AUCTION_PROGRESSIVE_DEPOSIT_LOCK':
+      return 'Bổ sung tiền đặt cọc đấu giá';
+    case 'AUCTION_DEPOSIT_RELEASED':
+      return 'Hoàn trả tiền đặt cọc đấu giá';
+    case 'AUCTION_DEPOSIT_FORFEITED':
+      return 'Khấu trừ cọc vi phạm quy chế';
+    case 'ESCROW_HOLD':
+      return 'Chuyển vào tiền ký quỹ giao dịch (Escrow)';
+    case 'ESCROW_DEBIT':
+      return 'Thanh toán từ quỹ ký quỹ (Escrow)';
+    case 'ESCROW_REFUNDED':
+      return 'Hoàn trả tiền ký quỹ (Escrow)';
+    case 'SELLER_PAYOUT':
+      return 'Giải ngân tiền bán SIM từ ký quỹ';
+    case 'AUCTION_COMPENSATION':
+      return 'Nhận tiền bồi thường giao dịch';
+    case 'PENALTY':
+      return 'Khấu trừ tiền phạt';
+    default:
+      return description || type || 'Giao dịch tài chính';
+  }
+}
 
 export default function TransactionsScreen() {
   const router = useRouter();
-
-  const [activeTab, setActiveTab] = useState<'transactions' | 'statement'>('transactions');
-  const [loading, setLoading] = useState(false);
+  const { wallet, escrowBalance, refreshWallet } = useAuth();
+  const [sourceFilter, setSourceFilter] = useState<SourceFilterKey>('ALL');
+  const [items, setItems] = useState<StatementItemDto[]>([]);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const [transactions, setTransactions] = useState<WalletTransactionDto[]>([]);
-  const [statementItems, setStatementItems] = useState<StatementItemDto[]>([]);
+  const fetchHistory = useCallback(
+    async (isRefresh = false) => {
+      if (isRefresh) setRefreshing(true);
+      else setLoading(true);
 
-  // Selected item for Detail Modal (SCR-09)
-  const [selectedTx, setSelectedTx] = useState<any | null>(null);
-
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    try {
-      if (activeTab === 'transactions') {
-        const res = await walletService.getTransactions({ pageIndex: 1, pageSize: 20 });
+      try {
+        const filter: UnifiedStatementQueryFilter = {
+          pageIndex: 1,
+          pageSize: 50,
+          sourceType: sourceFilter !== 'ALL' ? sourceFilter : undefined,
+          sortBy: WalletTransactionSortBy.CreatedAt,
+          sortOrder: SortOrder.Desc,
+        };
+        const res = await walletService.getStatement(filter);
         if (res.success && res.data?.items) {
-          setTransactions(res.data.items);
+          setItems(res.data.items);
         } else {
-          setTransactions([]);
+          setItems([]);
         }
-      } else {
-        const res = await walletService.getStatement({ pageIndex: 1, pageSize: 20 });
-        if (res.success && res.data?.items) {
-          setStatementItems(res.data.items);
-        } else {
-          setStatementItems([]);
-        }
+      } catch {
+        setItems([]);
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
       }
-    } catch {
-      if (activeTab === 'transactions') setTransactions([]);
-      else setStatementItems([]);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [activeTab]);
+    },
+    [sourceFilter]
+  );
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    fetchHistory();
+  }, [fetchHistory]);
 
-  const formatVnd = (val: number) => {
-    return val.toLocaleString('vi-VN') + ' đ';
+  const handleRefresh = async () => {
+    await Promise.allSettled([refreshWallet(), fetchHistory(true)]);
   };
 
-  const renderTransactionItem = ({ item }: { item: WalletTransactionDto }) => {
-    const isTopUp = (item.walletTransactionType || item.type) === 'TOP_UP';
-    const txStatus = item.transactionStatus || item.status || 'PENDING';
+  const availableBal = wallet?.availableBalance ?? 0;
+  const depositBal = wallet?.lockedBalance ?? 0;
+  const escrowBal = wallet?.escrowBalance ?? escrowBalance ?? 0;
+
+  const getStatusBadge = (status?: string, direction?: string) => {
+    if (direction === 'LOCK') {
+      return <VerificationStatusBadge status="checking" label="Đang giữ trung gian" size="sm" />;
+    }
+    switch (status) {
+      case 'COMPLETED':
+      case 'SUCCESS':
+        return <VerificationStatusBadge status="verified" label="Hoàn tất" size="sm" />;
+      case 'PENDING':
+        return <VerificationStatusBadge status="pending" label="Chờ xử lý" size="sm" />;
+      case 'FAILED':
+      case 'CANCELLED':
+        return <VerificationStatusBadge status="rejected" label="Đã hủy" size="sm" />;
+      default:
+        return <VerificationStatusBadge status="not_submitted" label={status || 'Khác'} size="sm" />;
+    }
+  };
+
+  const renderItem = ({ item, index }: { item: StatementItemDto; index: number }) => {
+    const isCredit = item.direction === 'CREDIT';
+    const isLock = item.direction === 'LOCK';
+    const isEscrow =
+      item.transactionType === 'ESCROW_HOLD' ||
+      item.transactionType === 'ESCROW_DEBIT' ||
+      item.transactionType === 'ESCROW_REFUNDED' ||
+      item.transactionType === 'SELLER_PAYOUT';
+    const refCode = item.referenceCode || item.transactionCode || item.id?.slice(0, 8);
+    const txDate = item.createdAt
+      ? new Date(item.createdAt).toLocaleDateString('vi-VN', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+      : '—';
+
+    const indicatorBg = isCredit
+      ? Colors.successLight
+      : isLock
+      ? isEscrow
+        ? 'rgba(22, 102, 197, 0.1)'
+        : Colors.warningLight
+      : Colors.surfaceAlt;
+
+    const indicatorColor = isCredit
+      ? Colors.success
+      : isLock
+      ? isEscrow
+        ? Colors.blue
+        : Colors.amber
+      : Colors.navy;
+
+    const iconName = isCredit
+      ? 'arrow-down-left'
+      : isLock
+      ? 'shield-lock-outline'
+      : 'arrow-up-right';
+
     return (
-      <TouchableOpacity
-        activeOpacity={0.8}
-        onPress={() => setSelectedTx({ ...item, isStatement: false, status: txStatus, type: isTopUp ? 'TOP_UP' : 'WITHDRAW' })}
-      >
-        <Card style={styles.itemCard}>
-          <View style={styles.iconCircle}>
-            <Ionicons
-              name={isTopUp ? 'arrow-down-circle' : 'arrow-up-circle'}
-              size={24}
-              color={isTopUp ? Colors.success : Colors.danger}
-            />
+      <View style={[styles.txCard, index > 0 && styles.txDivider]}>
+        <View style={styles.txRow}>
+          <View style={[styles.txTypeIndicator, { backgroundColor: indicatorBg }]}>
+            <MaterialCommunityIcons name={iconName} size={18} color={indicatorColor} />
           </View>
 
-          <View style={styles.itemContent}>
-            <Text style={styles.itemTitle}>
-              {isTopUp ? 'Nạp tiền VietQR' : 'Rút tiền ngân hàng'}
+          <View style={styles.txMetaCol}>
+            <Text style={styles.txTitle}>
+              {getStatementTitle(item.transactionType, item.description)}
             </Text>
-            <Text style={styles.itemCode}>{item.transactionCode}</Text>
-            <Text style={styles.itemDate}>
-              {new Date(item.createdAt).toLocaleString('vi-VN')}
-            </Text>
+            {item.description ? (
+              <Text style={styles.txDesc} numberOfLines={2}>
+                {item.description}
+              </Text>
+            ) : null}
+            <View style={styles.txSubRow}>
+              <Text style={styles.txCode}>#{refCode}</Text>
+              <Text style={styles.txDot}>·</Text>
+              <Text style={styles.txDate}>{txDate}</Text>
+            </View>
           </View>
 
-          <View style={styles.itemRight}>
+          <View style={styles.txAmountCol}>
             <Text
               style={[
-                styles.itemAmount,
-                { color: isTopUp ? Colors.success : Colors.text },
+                styles.txAmount,
+                {
+                  color: isCredit
+                    ? Colors.success
+                    : isLock
+                    ? isEscrow
+                      ? Colors.blue
+                      : Colors.amber
+                    : Colors.navy,
+                },
               ]}
             >
-              {isTopUp ? '+' : '-'} {formatVnd(item.amount)}
+              {isCredit ? '+' : '-'}
+              {Math.abs(item.amount).toLocaleString('vi-VN')} ₫
             </Text>
-            <Badge status={txStatus} style={{ marginTop: 4 }} />
+            <View style={{ marginTop: 4 }}>{getStatusBadge(item.status, item.direction)}</View>
           </View>
-        </Card>
-      </TouchableOpacity>
-    );
-  };
+        </View>
 
-  const renderStatementItem = ({ item }: { item: StatementItemDto }) => {
-    const isCredit = item.direction === 'CREDIT';
-    const isDebit = item.direction === 'DEBIT';
-    const amountColor = isCredit ? Colors.success : isDebit ? Colors.danger : Colors.warning;
-    const amountPrefix = isCredit ? '+' : isDebit ? '-' : '';
-
-    return (
-      <TouchableOpacity
-        activeOpacity={0.8}
-        onPress={() => setSelectedTx({ ...item, isStatement: true })}
-      >
-        <Card style={styles.itemCard}>
-          <View style={styles.iconCircle}>
-            <Ionicons
-              name={
-                isCredit
-                  ? 'arrow-down-circle'
-                  : isDebit
-                  ? 'arrow-up-circle'
-                  : item.transactionType?.includes('RELEASE')
-                  ? 'lock-open-outline'
-                  : 'lock-closed-outline'
-              }
-              size={22}
-              color={amountColor}
-            />
-          </View>
-
-          <View style={styles.itemContent}>
-            <View style={styles.statementTitleRow}>
-              <Text style={styles.itemTitle}>{item.transactionType}</Text>
-              {item.source && (
-                <View style={styles.sourceTag}>
-                  <Text style={styles.sourceTagText}>{item.source}</Text>
-                </View>
-              )}
-            </View>
-            <Text style={styles.itemDesc} numberOfLines={1}>
-              {item.description}
-            </Text>
-            <Text style={styles.itemDate}>
-              {new Date(item.createdAt).toLocaleString('vi-VN')}
-            </Text>
-          </View>
-
-          <View style={styles.itemRight}>
-            <Text style={[styles.itemAmount, { color: amountColor }]}>
-              {amountPrefix} {formatVnd(item.amount)}
-            </Text>
-            {item.direction ? (
-              <Badge status={item.direction} style={{ marginTop: 4 }} />
-            ) : (
-              <Text style={styles.statementBalanceSub}>
-                Sau GD: {formatVnd(item.balanceAfter)}
-              </Text>
-            )}
-          </View>
-        </Card>
-      </TouchableOpacity>
+        <View style={styles.balanceAuditRow}>
+          <Text style={styles.balanceAuditText}>
+            Trước GD: {(item.balanceBefore ?? 0).toLocaleString('vi-VN')} ₫
+          </Text>
+          <MaterialCommunityIcons name="arrow-right" size={12} color={Colors.textMuted} />
+          <Text style={styles.balanceAuditAfter}>
+            Sau GD: {(item.balanceAfter ?? 0).toLocaleString('vi-VN')} ₫
+          </Text>
+        </View>
+      </View>
     );
   };
 
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
-      <Header title="Lịch Sử Giao Dịch" showBack onBack={() => router.back()} showHome />
+      <Header title="Toàn Bộ Sao Kê & Lịch Sử Ví" showBack onBack={() => router.back()} />
 
-      {/* Tabs */}
-      <View style={styles.tabBar}>
-        <TouchableOpacity
-          style={[styles.tabItem, activeTab === 'transactions' && styles.tabItemActive]}
-          onPress={() => setActiveTab('transactions')}
-        >
-          <Text
-            style={[styles.tabText, activeTab === 'transactions' && styles.tabTextActive]}
-          >
-            Nạp & Rút Tiền
+      {/* Tóm tắt nhanh 3 quỹ: Khả dụng · Tiền cọc đấu giá · Tiền ký quỹ (Escrow) */}
+      <View style={styles.topSummaryStrip}>
+        <View style={styles.summaryItem}>
+          <Text style={styles.summaryLabel}>KHẢ DỤNG</Text>
+          <Text style={styles.summaryValue}>{availableBal.toLocaleString('vi-VN')} ₫</Text>
+        </View>
+        <View style={styles.summaryVLine} />
+        <View style={styles.summaryItem}>
+          <Text style={styles.summaryLabel}>TIỀN CỌC ĐẤU GIÁ</Text>
+          <Text style={[styles.summaryValue, { color: Colors.amber }]}>
+            {depositBal.toLocaleString('vi-VN')} ₫
           </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.tabItem, activeTab === 'statement' && styles.tabItemActive]}
-          onPress={() => setActiveTab('statement')}
-        >
-          <Text
-            style={[styles.tabText, activeTab === 'statement' && styles.tabTextActive]}
-          >
-            Tiền Cọc & Tạm Giữ
+        </View>
+        <View style={styles.summaryVLine} />
+        <View style={styles.summaryItem}>
+          <Text style={styles.summaryLabel}>KÝ QUỸ (ESCROW)</Text>
+          <Text style={[styles.summaryValue, { color: Colors.blue }]}>
+            {escrowBal.toLocaleString('vi-VN')} ₫
           </Text>
-        </TouchableOpacity>
+        </View>
       </View>
 
-      {/* List */}
-      {activeTab === 'transactions' ? (
-        <FlatList
-          data={transactions}
-          keyExtractor={(i) => i.id}
-          renderItem={renderTransactionItem}
-          contentContainerStyle={styles.listContent}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={() => {
-                setRefreshing(true);
-                fetchData();
-              }}
-            />
-          }
-          ListEmptyComponent={
-            loading ? (
-              <View style={styles.emptyContainer}>
-                <ActivityIndicator size="large" color={Colors.primary} />
-                <Text style={styles.emptyText}>Đang tải giao dịch...</Text>
-              </View>
-            ) : (
-              <View style={styles.emptyContainer}>
-                <Ionicons name="receipt-outline" size={48} color={Colors.textMuted} />
-                <Text style={styles.emptyText}>Chưa có giao dịch nào</Text>
-              </View>
-            )
-          }
-        />
+      {/* Bộ lọc phân nhóm chuẩn hệ thống */}
+      <View style={styles.filterBarWrapper}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterRow}
+        >
+          {SOURCE_FILTERS.map((f) => {
+            const active = sourceFilter === f.key;
+            return (
+              <TouchableOpacity
+                key={f.key}
+                style={[styles.filterPill, active && styles.filterPillActive]}
+                onPress={() => setSourceFilter(f.key)}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.filterPillText, active && styles.filterPillTextActive]}>
+                  {f.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      </View>
+
+      {loading && !refreshing ? (
+        <View style={styles.centerBox}>
+          <ActivityIndicator size="large" color={Colors.navy} />
+          <Text style={styles.loadingText}>Đang tải sao kê sổ cái...</Text>
+        </View>
       ) : (
         <FlatList
-          data={statementItems}
-          keyExtractor={(i) => i.id}
-          renderItem={renderStatementItem}
+          data={items}
+          keyExtractor={(item, idx) => item.id || String(idx)}
+          renderItem={renderItem}
           contentContainerStyle={styles.listContent}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
-              onRefresh={() => {
-                setRefreshing(true);
-                fetchData();
-              }}
+              onRefresh={handleRefresh}
+              tintColor={Colors.navy}
             />
           }
           ListEmptyComponent={
-            loading ? (
-              <View style={styles.emptyContainer}>
-                <ActivityIndicator size="large" color={Colors.primary} />
-                <Text style={styles.emptyText}>Đang tải dữ liệu...</Text>
-              </View>
-            ) : (
-              <View style={styles.emptyContainer}>
-                <Ionicons name="book-outline" size={48} color={Colors.textMuted} />
-                <Text style={styles.emptyText}>Chưa có khoản đặt cọc hoặc tạm giữ nào</Text>
-              </View>
-            )
+            <View style={styles.emptyPanel}>
+              <MaterialCommunityIcons
+                name="receipt-text-outline"
+                size={36}
+                color={Colors.textMuted}
+              />
+              <Text style={styles.emptyTitle}>Chưa có bút toán nào trong mục này</Text>
+              <Text style={styles.emptySub}>
+                Các giao dịch Nạp/Rút, Tiền đặt cọc đấu giá và Tiền ký quỹ chuyển nhượng SIM (Escrow) sẽ hiển thị chi tiết tại đây.
+              </Text>
+            </View>
           }
         />
       )}
 
-      {/* SCR-09: Transaction Detail Modal */}
-      <Modal visible={!!selectedTx} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Chi Tiết Giao Dịch</Text>
-              <TouchableOpacity onPress={() => setSelectedTx(null)}>
-                <Ionicons name="close" size={24} color={Colors.textSecondary} />
-              </TouchableOpacity>
-            </View>
-
-            {selectedTx && (
-              <View style={styles.modalBody}>
-                <View style={styles.modalAmountBox}>
-                  <Text style={styles.modalAmountLabel}>Số tiền biến động:</Text>
-                  <Text style={styles.modalAmountValue}>{formatVnd(selectedTx.amount)}</Text>
-                  <Badge status={selectedTx.transactionStatus || selectedTx.status} style={{ marginTop: 4 }} />
-                </View>
-
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Mã giao dịch:</Text>
-                  <Text style={styles.detailValBold}>{selectedTx.transactionCode || selectedTx.referenceCode || selectedTx.id}</Text>
-                </View>
-
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Loại giao dịch:</Text>
-                  <Text style={styles.detailVal}>
-                    {selectedTx.walletTransactionType === 'TOP_UP' || selectedTx.type === 'TOP_UP'
-                      ? 'Nạp tiền VietQR'
-                      : selectedTx.walletTransactionType === 'WITHDRAW' || selectedTx.type === 'WITHDRAW'
-                      ? 'Rút tiền ngân hàng'
-                      : (selectedTx.type || selectedTx.transactionType || 'Biến động ví')}
-                  </Text>
-                </View>
-
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Thời gian ghi nhận:</Text>
-                  <Text style={styles.detailVal}>
-                    {new Date(selectedTx.createdAt).toLocaleString('vi-VN')}
-                  </Text>
-                </View>
-
-                {selectedTx.isStatement && (
-                  <>
-                    {selectedTx.source && (
-                      <View style={styles.detailRow}>
-                        <Text style={styles.detailLabel}>Nguồn nghiệp vụ:</Text>
-                        <Text style={styles.detailValBold}>{selectedTx.source}</Text>
-                      </View>
-                    )}
-                    {selectedTx.direction && (
-                      <View style={styles.detailRow}>
-                        <Text style={styles.detailLabel}>Hướng dòng tiền:</Text>
-                        <Badge status={selectedTx.direction} />
-                      </View>
-                    )}
-                    <View style={styles.detailRow}>
-                      <Text style={styles.detailLabel}>Số dư trước GD:</Text>
-                      <Text style={styles.detailVal}>{formatVnd(selectedTx.balanceBefore)}</Text>
-                    </View>
-                    <View style={styles.detailRow}>
-                      <Text style={styles.detailLabel}>Số dư sau GD:</Text>
-                      <Text style={[styles.detailValBold, { color: Colors.primary }]}>
-                        {formatVnd(selectedTx.balanceAfter)}
-                      </Text>
-                    </View>
-                  </>
-                )}
-
-                <View style={styles.descBox}>
-                  <Text style={styles.descLabel}>Nội dung diễn giải:</Text>
-                  <Text style={styles.descText}>
-                    {selectedTx.description || 'Giao dịch qua cổng tài chính TrustSim'}
-                  </Text>
-                </View>
-
-                <View style={styles.hashBox}>
-                  <Ionicons name="shield-checkmark" size={16} color={Colors.success} />
-                  <Text style={styles.hashText}>
-                    Giao dịch đã được ghi nhận và bảo vệ an toàn
-                  </Text>
-                </View>
-
-                <Button
-                  title="Đóng Chi Tiết"
-                  variant="primary"
-                  size="md"
-                  onPress={() => setSelectedTx(null)}
-                  style={{ marginTop: Spacing.lg }}
-                />
-              </View>
-            )}
-          </View>
-        </View>
-      </Modal>
+      {/* Đồng bộ 100% thanh điều hướng dưới cùng với các tab chính */}
       <BottomNavBar activeTab="wallet" />
     </SafeAreaView>
   );
@@ -369,199 +329,189 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  tabBar: {
+  topSummaryStrip: {
     flexDirection: 'row',
     backgroundColor: Colors.surface,
-    paddingHorizontal: Spacing.lg,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: Colors.border,
+    paddingVertical: Spacing.sm + 2,
+    paddingHorizontal: Spacing.sm,
   },
-  tabItem: {
+  summaryItem: {
     flex: 1,
-    paddingVertical: Spacing.md,
     alignItems: 'center',
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
   },
-  tabItemActive: {
-    borderBottomColor: Colors.primary,
+  summaryVLine: {
+    width: 1,
+    backgroundColor: Colors.borderLight,
   },
-  tabText: {
-    fontSize: 14,
-    fontWeight: '600',
+  summaryLabel: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: Colors.textMuted,
+    letterSpacing: 0.4,
+  },
+  summaryValue: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: Colors.navy,
+    fontVariant: ['tabular-nums'],
+    marginTop: 2,
+  },
+  filterBarWrapper: {
+    backgroundColor: Colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  filterRow: {
+    flexDirection: 'row',
+    gap: Spacing.xs,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+  },
+  filterPill: {
+    paddingHorizontal: 13,
+    paddingVertical: 7,
+    borderRadius: BorderRadius.sm,
+    backgroundColor: Colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  filterPillActive: {
+    backgroundColor: Colors.navy,
+    borderColor: Colors.navy,
+  },
+  filterPillText: {
+    fontSize: 12,
+    fontWeight: '700',
     color: Colors.textSecondary,
   },
-  tabTextActive: {
-    color: Colors.primary,
-    fontWeight: '800',
+  filterPillTextActive: {
+    color: '#FFFFFF',
+  },
+  centerBox: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing.xl,
+  },
+  loadingText: {
+    marginTop: Spacing.sm,
+    fontSize: 13,
+    color: Colors.textSecondary,
   },
   listContent: {
     padding: Spacing.lg,
+    paddingBottom: Spacing.xxl,
   },
-  itemCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  txCard: {
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.md,
     padding: Spacing.md,
-    marginBottom: Spacing.xs,
+    marginBottom: Spacing.sm,
   },
-  iconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: Colors.surfaceAlt,
+  txDivider: {},
+  txRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  txTypeIndicator: {
+    width: 36,
+    height: 36,
+    borderRadius: BorderRadius.sm,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: Spacing.md,
+    marginTop: 2,
   },
-  itemContent: {
+  txMetaCol: {
     flex: 1,
+    paddingRight: Spacing.sm,
   },
-  itemTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: Colors.text,
-  },
-  itemCode: {
-    fontSize: 11,
-    color: Colors.textSecondary,
-    marginTop: 2,
-  },
-  itemDesc: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    marginTop: 2,
-  },
-  itemDate: {
-    fontSize: 11,
-    color: Colors.textMuted,
-    marginTop: 2,
-  },
-  itemRight: {
-    alignItems: 'flex-end',
-  },
-  itemAmount: {
-    fontSize: 15,
+  txTitle: {
+    fontSize: 13,
     fontWeight: '800',
+    color: Colors.navy,
   },
-  statementBalanceSub: {
+  txDesc: {
     fontSize: 11,
-    color: Colors.textMuted,
+    color: Colors.textSecondary,
+    marginTop: 2,
+    lineHeight: 15,
+  },
+  txSubRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginTop: 4,
   },
-  statementTitleRow: {
+  txCode: {
+    fontSize: 11,
+    color: Colors.textSecondary,
+    fontFamily: 'monospace',
+  },
+  txDot: {
+    fontSize: 11,
+    color: Colors.textMuted,
+    marginHorizontal: 5,
+  },
+  txDate: {
+    fontSize: 11,
+    color: Colors.textMuted,
+    fontVariant: ['tabular-nums'],
+  },
+  txAmountCol: {
+    alignItems: 'flex-end',
+  },
+  txAmount: {
+    fontSize: 14,
+    fontWeight: '800',
+    fontVariant: ['tabular-nums'],
+  },
+  balanceAuditRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.xs,
-  },
-  sourceTag: {
-    backgroundColor: 'rgba(30, 58, 138, 0.08)',
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-    borderRadius: BorderRadius.sm,
-  },
-  sourceTagText: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: Colors.primary,
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    paddingVertical: Spacing.xxxl,
-  },
-  emptyText: {
-    fontSize: 14,
-    color: Colors.textMuted,
+    justifyContent: 'space-between',
+    backgroundColor: Colors.surfaceAlt,
+    borderRadius: BorderRadius.xs,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 6,
     marginTop: Spacing.sm,
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.65)',
-    justifyContent: 'flex-end',
+  balanceAuditText: {
+    fontSize: 11,
+    color: Colors.textSecondary,
+    fontVariant: ['tabular-nums'],
   },
-  modalCard: {
+  balanceAuditAfter: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.navy,
+    fontVariant: ['tabular-nums'],
+  },
+  emptyPanel: {
     backgroundColor: Colors.surface,
-    borderTopLeftRadius: BorderRadius.xl,
-    borderTopRightRadius: BorderRadius.xl,
-    padding: Spacing.xl,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: Spacing.md,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: Colors.text,
-  },
-  modalBody: {
-    paddingTop: Spacing.xs,
-  },
-  modalAmountBox: {
-    alignItems: 'center',
-    backgroundColor: Colors.surfaceAlt,
     borderRadius: BorderRadius.md,
-    padding: Spacing.md,
-    marginBottom: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.xl,
+    alignItems: 'center',
+    marginTop: Spacing.md,
   },
-  modalAmountLabel: {
+  emptyTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.navy,
+    marginTop: Spacing.sm,
+  },
+  emptySub: {
     fontSize: 12,
     color: Colors.textSecondary,
-  },
-  modalAmountValue: {
-    fontSize: 24,
-    fontWeight: '900',
-    color: Colors.primary,
-    marginVertical: 2,
-  },
-  detailRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: Spacing.xs + 2,
-  },
-  detailLabel: {
-    fontSize: 13,
-    color: Colors.textSecondary,
-  },
-  detailVal: {
-    fontSize: 13,
-    color: Colors.text,
-  },
-  detailValBold: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: Colors.text,
-  },
-  descBox: {
-    backgroundColor: 'rgba(241, 245, 249, 0.8)',
-    borderRadius: BorderRadius.sm,
-    padding: Spacing.sm,
-    marginVertical: Spacing.sm,
-  },
-  descLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: Colors.textSecondary,
-    marginBottom: 2,
-  },
-  descText: {
-    fontSize: 13,
-    color: Colors.text,
+    textAlign: 'center',
+    marginTop: 4,
     lineHeight: 18,
-  },
-  hashBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.successLight,
-    padding: Spacing.sm,
-    borderRadius: BorderRadius.sm,
-    marginTop: Spacing.xs,
-  },
-  hashText: {
-    fontSize: 11,
-    color: '#065F46',
-    fontWeight: '600',
-    marginLeft: 6,
   },
 });

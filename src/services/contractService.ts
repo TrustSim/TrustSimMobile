@@ -12,22 +12,41 @@ import {
 
 export const contractService = {
   // Get current user's trade transactions / contracts
-  async getMyContracts(filter?: { pageIndex?: number; pageSize?: number }): Promise<ApiResponse<PagedResult<TradeTransactionDto>>> {
-    const res = await apiClient.get<ApiResponse<PagedResult<TradeTransactionDto>>>('/tradetransactions', {
-      params: filter,
-    });
+  async getMyContracts(filter?: {
+    pageIndex?: number;
+    pageSize?: number;
+  }): Promise<ApiResponse<PagedResult<TradeTransactionDto>>> {
+    const res = await apiClient.get<ApiResponse<PagedResult<TradeTransactionDto>>>(
+      '/tradetransactions',
+      {
+        params: filter,
+      }
+    );
+    return res.data;
+  },
+
+  // Get a single trade transaction by ID
+  async getById(tradeId: string): Promise<ApiResponse<TradeTransactionDto>> {
+    const res = await apiClient.get<ApiResponse<TradeTransactionDto>>(
+      `/tradetransactions/${tradeId}`
+    );
     return res.data;
   },
 
   // Preview 3-party contract content and signature status
   async preview(tradeId: string): Promise<ApiResponse<ContractPreviewDto>> {
-    const res = await apiClient.get<ApiResponse<ContractPreviewDto>>(`/contracts/${tradeId}/preview`);
+    const res = await apiClient.get<ApiResponse<ContractPreviewDto>>(
+      `/contracts/${tradeId}/preview`
+    );
     return res.data;
   },
 
   // Request Email OTP for contract signing
   async sendOtp(tradeId: string): Promise<ApiResponse<ContractOtpSendResultDto>> {
-    const res = await apiClient.post<ApiResponse<ContractOtpSendResultDto>>(`/contracts/${tradeId}/send-otp`, {});
+    const res = await apiClient.post<ApiResponse<ContractOtpSendResultDto>>(
+      `/contracts/${tradeId}/send-otp`,
+      {}
+    );
     return res.data;
   },
 
@@ -42,7 +61,10 @@ export const contractService = {
     if (handwrittenSignatureBase64) {
       payload.signatureImageBase64 = handwrittenSignatureBase64;
     }
-    const res = await apiClient.post<ApiResponse<ContractSignResultDto>>(`/contracts/${tradeId}/sign`, payload);
+    const res = await apiClient.post<ApiResponse<ContractSignResultDto>>(
+      `/contracts/${tradeId}/sign`,
+      payload
+    );
     return res.data;
   },
 
@@ -52,10 +74,16 @@ export const contractService = {
   },
 
   // Verify contract document integrity & PAdES X.509 digital seal
-  async verifyIntegrity(tradeId: string, clientSha256: string): Promise<ApiResponse<ContractIntegrityResultDto>> {
-    const res = await apiClient.post<ApiResponse<ContractIntegrityResultDto>>(`/contracts/${tradeId}/verify-integrity`, {
-      clientSha256,
-    });
+  async verifyIntegrity(
+    tradeId: string,
+    clientSha256: string
+  ): Promise<ApiResponse<ContractIntegrityResultDto>> {
+    const res = await apiClient.post<ApiResponse<ContractIntegrityResultDto>>(
+      `/contracts/${tradeId}/verify-integrity`,
+      {
+        clientSha256,
+      }
+    );
     return res.data;
   },
 };

@@ -1,9 +1,26 @@
 import React from 'react';
+import { StyleSheet, View } from 'react-native';
 import { Redirect, Tabs } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Colors } from '../../constants/theme';
+import { BorderRadius, Colors, Shadows } from '../../constants/theme';
 import { useAuth } from '../../context/AuthContext';
+
+function TabIconBubble({
+  name,
+  color,
+  focused,
+}: {
+  name: keyof typeof MaterialCommunityIcons.glyphMap;
+  color: string;
+  focused: boolean;
+}) {
+  return (
+    <View style={[styles.iconPill, focused && styles.iconPillActive]}>
+      <MaterialCommunityIcons name={name} size={21} color={focused ? Colors.navy : color} />
+    </View>
+  );
+}
 
 export default function TabLayout() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -13,8 +30,8 @@ export default function TabLayout() {
     return <Redirect href="/login" />;
   }
 
-  const bottomInset = Math.max(insets.bottom, 8);
-  const tabHeight = 56 + bottomInset;
+  const bottomInset = Math.max(insets.bottom, 10);
+  const tabHeight = 64 + bottomInset;
 
   return (
     <Tabs
@@ -24,18 +41,18 @@ export default function TabLayout() {
         tabBarInactiveTintColor: Colors.textMuted,
         tabBarStyle: {
           backgroundColor: Colors.surface,
-          borderTopColor: Colors.border,
+          borderTopColor: Colors.borderLight,
           borderTopWidth: 1,
           height: tabHeight,
           paddingBottom: bottomInset,
           paddingTop: 6,
-          elevation: 0,
-          shadowOpacity: 0,
+          ...Shadows.md,
         },
         tabBarLabelStyle: {
-          fontSize: 10,
+          fontSize: 10.5,
           fontWeight: '700',
-          letterSpacing: 0.1,
+          letterSpacing: -0.1,
+          marginTop: 2,
         },
       }}
     >
@@ -44,10 +61,10 @@ export default function TabLayout() {
         options={{
           title: 'Tổng quan',
           tabBarIcon: ({ color, focused }) => (
-            <MaterialCommunityIcons
+            <TabIconBubble
               name={focused ? 'view-dashboard' : 'view-dashboard-outline'}
-              size={22}
               color={color as string}
+              focused={focused}
             />
           ),
         }}
@@ -57,10 +74,10 @@ export default function TabLayout() {
         options={{
           title: 'Xác thực SIM',
           tabBarIcon: ({ color, focused }) => (
-            <MaterialCommunityIcons
+            <TabIconBubble
               name={focused ? 'sim' : 'sim-outline'}
-              size={22}
               color={color as string}
+              focused={focused}
             />
           ),
         }}
@@ -69,11 +86,11 @@ export default function TabLayout() {
         name="contracts"
         options={{
           title: 'Bằng chứng',
-          tabBarIcon: ({ color }) => (
-            <MaterialCommunityIcons
+          tabBarIcon: ({ color, focused }) => (
+            <TabIconBubble
               name="camera-document"
-              size={22}
               color={color as string}
+              focused={focused}
             />
           ),
         }}
@@ -83,10 +100,10 @@ export default function TabLayout() {
         options={{
           title: 'Ví tiền',
           tabBarIcon: ({ color, focused }) => (
-            <MaterialCommunityIcons
+            <TabIconBubble
               name={focused ? 'wallet' : 'wallet-outline'}
-              size={22}
               color={color as string}
+              focused={focused}
             />
           ),
         }}
@@ -96,15 +113,14 @@ export default function TabLayout() {
         options={{
           title: 'Định danh',
           tabBarIcon: ({ color, focused }) => (
-            <MaterialCommunityIcons
+            <TabIconBubble
               name={focused ? 'shield-account' : 'shield-account-outline'}
-              size={22}
               color={color as string}
+              focused={focused}
             />
           ),
         }}
       />
-      {/* Ẩn tab đấu giá vì ứng dụng di động tập trung vào Xác thực, Ví & Bằng chứng */}
       <Tabs.Screen
         name="auctions"
         options={{ href: null }}
@@ -112,3 +128,16 @@ export default function TabLayout() {
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  iconPill: {
+    width: 44,
+    height: 28,
+    borderRadius: BorderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconPillActive: {
+    backgroundColor: '#E8EFFD',
+  },
+});
