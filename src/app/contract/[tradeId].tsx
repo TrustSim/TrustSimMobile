@@ -115,8 +115,8 @@ export default function ContractPreviewScreen() {
       setOtpCooldown(cooldown);
       setOtpSentMessage(
         res.data?.message ||
-          res.message ||
-          `Đã gửi mã OTP 6 chữ số tới email ${res.data?.email || user?.email || 'đăng ký'}.`
+        res.message ||
+        `Đã gửi mã OTP 6 chữ số tới email ${res.data?.email || user?.email || 'đăng ký'}.`
       );
     } catch (err: any) {
       setOtpError(extractErrorMessage(err));
@@ -166,7 +166,7 @@ export default function ContractPreviewScreen() {
           Alert.alert(
             'Đã Ký Đủ 2 Bên · Mở Khóa Bước Bàn Giao',
             res.data?.message ||
-              'Cả Bên Mua và Bên Bán đã hoàn tất ký hợp đồng bằng OTP. Hệ thống đã mở khóa bước Chụp bằng chứng sang tên SIM.',
+            'Cả Bên Mua và Bên Bán đã hoàn tất ký hợp đồng bằng OTP. Hệ thống đã mở khóa bước Chụp bằng chứng sang tên SIM.',
             [
               {
                 text: 'Ở lại xem hợp đồng',
@@ -182,7 +182,7 @@ export default function ContractPreviewScreen() {
           Alert.alert(
             'Đã Ghi Nhận Chữ Ký OTP Của Bạn',
             res.data?.message ||
-              'Chữ ký điện tử bằng OTP của bạn đã được lưu hợp lệ. Hợp đồng đang chờ đối phương ký xác nhận để chuyển sang bước chụp bằng chứng bàn giao.'
+            'Chữ ký điện tử bằng OTP của bạn đã được lưu hợp lệ. Hợp đồng đang chờ đối phương ký xác nhận để chuyển sang bước chụp bằng chứng bàn giao.'
           );
         }
       } else {
@@ -229,8 +229,8 @@ export default function ContractPreviewScreen() {
 
   const isFullySigned = Boolean(
     contract?.isFullySigned ||
-      contract?.contractStatus === 'FULLY_SIGNED' ||
-      (contract?.buyerSigned && contract?.sellerSigned)
+    contract?.contractStatus === 'FULLY_SIGNED' ||
+    (contract?.buyerSigned && contract?.sellerSigned)
   );
 
   const currentUserId = (user?.userId || '').toLowerCase();
@@ -245,8 +245,8 @@ export default function ContractPreviewScreen() {
   const hasCurrentUserSigned = isBuyer
     ? Boolean(contract?.buyerSigned)
     : isSeller
-    ? Boolean(contract?.sellerSigned)
-    : isFullySigned;
+      ? Boolean(contract?.sellerSigned)
+      : isFullySigned;
 
   const canCurrentUserSign = !isFullySigned && !hasCurrentUserSigned;
 
@@ -254,8 +254,8 @@ export default function ContractPreviewScreen() {
     trade?.status === 'Completed'
       ? 'Completed'
       : isFullySigned || trade?.status === 'PendingTransfer'
-      ? 'PendingTransfer'
-      : 'PendingSignature';
+        ? 'PendingTransfer'
+        : 'PendingSignature';
 
   const formatSignedTime = (iso?: string | null) => {
     if (!iso) return null;
@@ -306,8 +306,8 @@ export default function ContractPreviewScreen() {
                 isFullySigned
                   ? 'Đã ký đủ 2 bên'
                   : hasCurrentUserSigned
-                  ? 'Chờ đối phương ký'
-                  : 'Chờ bạn ký OTP'
+                    ? 'Chờ đối phương ký'
+                    : 'Chờ bạn ký OTP'
               }
             />
           </View>
@@ -325,7 +325,7 @@ export default function ContractPreviewScreen() {
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Cơ chế bảo vệ:</Text>
             <Text style={[styles.infoValue, { color: Colors.success }]}>
-              Sàn giữ trung gian (Hoàn tất → trả người bán, Hủy → hoàn tiền)
+              Sàn giữ trung gian
             </Text>
           </View>
 

@@ -34,11 +34,11 @@ function getStatementTitle(type: string, description?: string): string {
     case 'AUCTION_DEPOSIT_FORFEITED':
       return 'Khấu trừ cọc vi phạm quy chế';
     case 'ESCROW_HOLD':
-      return 'Chuyển vào tiền ký quỹ (Escrow)';
+      return 'Chuyển vào tiền ký quỹ giao dịch';
     case 'ESCROW_DEBIT':
-      return 'Thanh toán từ quỹ ký quỹ (Escrow)';
+      return 'Thanh toán từ tiền ký quỹ';
     case 'ESCROW_REFUNDED':
-      return 'Hoàn tiền ký quỹ (Escrow)';
+      return 'Hoàn tiền ký quỹ';
     case 'SELLER_PAYOUT':
       return 'Giải ngân tiền bán SIM từ ký quỹ';
     case 'AUCTION_COMPENSATION':
@@ -177,7 +177,7 @@ export default function WalletScreen() {
         {/* Top Header */}
         <View style={styles.headerRow}>
           <View>
-            <Text style={styles.headerSub}>Sổ cái tài chính · Cọc & Ký quỹ trung gian</Text>
+            <Text style={styles.headerSub}>Sổ cái tài chính · Cọc & Ký quỹ</Text>
             <Text style={styles.pageTitle}>Ví Tiền & Bảo Chứng</Text>
           </View>
           <VerificationStatusBadge
@@ -191,29 +191,44 @@ export default function WalletScreen() {
         <View style={styles.vaultHeroCard}>
           <View style={styles.vaultGlow} />
           <View style={styles.vaultTopRow}>
-            <View>
+            <View style={styles.vaultBalanceHeader}>
               <Text style={styles.vaultBalanceCaption}>Số dư khả dụng</Text>
-              <Text style={styles.vaultBalanceValue}>
-                {availableBal.toLocaleString('vi-VN')}{' '}
-                <Text style={styles.vaultCurrency}>₫</Text>
-              </Text>
+              <View style={styles.totalAssetPill}>
+                <Text style={styles.totalAssetLabel}>Tổng tài sản: </Text>
+                <Text
+                  style={styles.totalAssetValue}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.7}
+                >
+                  {totalBal.toLocaleString('vi-VN')} ₫
+                </Text>
+              </View>
             </View>
-            <View style={styles.totalAssetPill}>
-              <Text style={styles.totalAssetLabel}>Tổng tài sản</Text>
-              <Text style={styles.totalAssetValue}>
-                {totalBal.toLocaleString('vi-VN')} ₫
-              </Text>
-            </View>
+            <Text
+              style={styles.vaultBalanceValue}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.5}
+            >
+              {availableBal.toLocaleString('vi-VN')}{' '}
+              <Text style={styles.vaultCurrency}>₫</Text>
+            </Text>
           </View>
 
-          {/* 2 Glass Cards: Tiền Cọc Đấu Giá vs Tiền Ký Quỹ (Escrow) */}
+          {/* 2 Glass Cards: Tiền Cọc Đấu Giá vs Tiền Ký Quỹ */}
           <View style={styles.vaultGlassGrid}>
             <View style={styles.vaultGlassBox}>
               <View style={styles.vaultGlassHeader}>
                 <View style={[styles.vaultDot, { backgroundColor: '#FBBF24' }]} />
                 <Text style={styles.vaultGlassTitle}>Tiền cọc đấu giá</Text>
               </View>
-              <Text style={[styles.vaultGlassAmount, { color: '#FDE68A' }]}>
+              <Text
+                style={[styles.vaultGlassAmount, { color: '#FDE68A' }]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.65}
+              >
                 {depositBal.toLocaleString('vi-VN')} ₫
               </Text>
               <Text style={styles.vaultGlassNote}>
@@ -224,9 +239,14 @@ export default function WalletScreen() {
             <View style={styles.vaultGlassBox}>
               <View style={styles.vaultGlassHeader}>
                 <View style={[styles.vaultDot, { backgroundColor: '#38BDF8' }]} />
-                <Text style={styles.vaultGlassTitle}>Tiền ký quỹ (Escrow)</Text>
+                <Text style={styles.vaultGlassTitle}>Tiền ký quỹ</Text>
               </View>
-              <Text style={[styles.vaultGlassAmount, { color: '#7DD3FC' }]}>
+              <Text
+                style={[styles.vaultGlassAmount, { color: '#7DD3FC' }]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.65}
+              >
                 {escrowBal.toLocaleString('vi-VN')} ₫
               </Text>
               <Text style={styles.vaultGlassNote}>
@@ -268,7 +288,7 @@ export default function WalletScreen() {
           </View>
           <Text style={styles.policyText}>
             <Text style={{ fontWeight: '800', color: Colors.navy }}>Cơ chế bảo chứng 2 lớp: </Text>
-            Khi tham gia đấu giá, sàn tạm giữ <Text style={{ fontWeight: '700' }}>Tiền cọc</Text> (không thắng hoàn ngay; thắng cộng vào tiền ký quỹ). Khi lập hợp đồng chuyển nhượng, toàn bộ giá trị SIM nằm trong <Text style={{ fontWeight: '700' }}>Tiền ký quỹ (Escrow)</Text> và chỉ giải ngân cho người bán sau khi sang tên thành công.
+            Khi tham gia đấu giá, sàn tạm giữ <Text style={{ fontWeight: '700' }}>Tiền cọc</Text> (không thắng hoàn ngay; thắng cộng vào tiền ký quỹ). Khi lập hợp đồng chuyển nhượng, toàn bộ giá trị SIM nằm trong <Text style={{ fontWeight: '700' }}>Tiền ký quỹ</Text> và chỉ giải ngân cho người bán sau khi sang tên thành công.
           </Text>
         </View>
 
@@ -290,7 +310,7 @@ export default function WalletScreen() {
               { key: 'ALL', label: 'Tất cả' },
               { key: 'WALLET', label: 'Nạp / Rút' },
               { key: 'AUCTION_DEPOSIT', label: 'Tiền cọc đấu giá' },
-              { key: 'ESCROW', label: 'Tiền ký quỹ (Escrow)' },
+              { key: 'ESCROW', label: 'Tiền ký quỹ' },
             ] as { key: LedgerFilter; label: string }[]
           ).map((item) => {
             const active = filter === item.key;
@@ -321,7 +341,7 @@ export default function WalletScreen() {
             </View>
             <Text style={styles.emptyTitle}>Chưa có giao dịch phù hợp</Text>
             <Text style={styles.emptySub}>
-              Mọi biến động Nạp/Rút, Đặt cọc đấu giá và Tiền ký quỹ (Escrow) đều được ghi nhận minh bạch tại đây.
+              Mọi biến động Nạp/Rút, Đặt cọc đấu giá và Tiền ký quỹ đều được ghi nhận minh bạch tại đây.
             </Text>
           </View>
         ) : (
@@ -466,11 +486,15 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(29, 78, 216, 0.3)',
   },
   vaultTopRow: {
+    marginBottom: Spacing.lg,
+  },
+  vaultBalanceHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: Spacing.lg,
-    gap: Spacing.sm,
+    alignItems: 'center',
+    marginBottom: 4,
+    flexWrap: 'wrap',
+    gap: 6,
   },
   vaultBalanceCaption: {
     fontSize: 12,
@@ -478,11 +502,10 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
   },
   vaultBalanceValue: {
-    fontSize: 31,
+    fontSize: 30,
     fontWeight: '800',
     color: '#FFFFFF',
     fontVariant: ['tabular-nums'],
-    marginTop: 4,
     letterSpacing: -0.8,
   },
   vaultCurrency: {
@@ -491,25 +514,25 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
   },
   totalAssetPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.15)',
-    borderRadius: BorderRadius.md,
+    borderRadius: BorderRadius.full,
     paddingHorizontal: 10,
-    paddingVertical: 6,
-    alignItems: 'flex-end',
+    paddingVertical: 4,
   },
   totalAssetLabel: {
-    fontSize: 10,
+    fontSize: 10.5,
     fontWeight: '600',
     color: '#CBD5E1',
   },
   totalAssetValue: {
-    fontSize: 12.5,
+    fontSize: 11.5,
     fontWeight: '800',
     color: '#FFFFFF',
     fontVariant: ['tabular-nums'],
-    marginTop: 1,
   },
   vaultGlassGrid: {
     flexDirection: 'row',

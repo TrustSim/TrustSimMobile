@@ -31,7 +31,7 @@ const SOURCE_FILTERS: { key: SourceFilterKey; label: string }[] = [
   { key: 'ALL', label: 'Tất cả sao kê' },
   { key: 'WALLET', label: 'Nạp & Rút tiền' },
   { key: 'AUCTION_DEPOSIT', label: 'Tiền cọc đấu giá' },
-  { key: 'ESCROW', label: 'Tiền ký quỹ (Escrow)' },
+  { key: 'ESCROW', label: 'Tiền ký quỹ' },
   { key: 'COMPENSATION', label: 'Tiền bồi thường' },
 ];
 
@@ -51,11 +51,11 @@ function getStatementTitle(type: string, description?: string): string {
     case 'AUCTION_DEPOSIT_FORFEITED':
       return 'Khấu trừ cọc vi phạm quy chế';
     case 'ESCROW_HOLD':
-      return 'Chuyển vào tiền ký quỹ giao dịch (Escrow)';
+      return 'Chuyển vào tiền ký quỹ giao dịch';
     case 'ESCROW_DEBIT':
-      return 'Thanh toán từ quỹ ký quỹ (Escrow)';
+      return 'Thanh toán từ tiền ký quỹ';
     case 'ESCROW_REFUNDED':
-      return 'Hoàn trả tiền ký quỹ (Escrow)';
+      return 'Hoàn trả tiền ký quỹ';
     case 'SELLER_PAYOUT':
       return 'Giải ngân tiền bán SIM từ ký quỹ';
     case 'AUCTION_COMPENSATION':
@@ -237,23 +237,40 @@ export default function TransactionsScreen() {
     <SafeAreaView edges={['top']} style={styles.safeArea}>
       <Header title="Toàn Bộ Sao Kê & Lịch Sử Ví" showBack onBack={() => router.back()} />
 
-      {/* Tóm tắt nhanh 3 quỹ: Khả dụng · Tiền cọc đấu giá · Tiền ký quỹ (Escrow) */}
+      {/* Tóm tắt nhanh 3 quỹ: Khả dụng · Tiền cọc đấu giá · Tiền ký quỹ */}
       <View style={styles.topSummaryStrip}>
         <View style={styles.summaryItem}>
           <Text style={styles.summaryLabel}>KHẢ DỤNG</Text>
-          <Text style={styles.summaryValue}>{availableBal.toLocaleString('vi-VN')} ₫</Text>
+          <Text
+            style={styles.summaryValue}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.7}
+          >
+            {availableBal.toLocaleString('vi-VN')} ₫
+          </Text>
         </View>
         <View style={styles.summaryVLine} />
         <View style={styles.summaryItem}>
           <Text style={styles.summaryLabel}>TIỀN CỌC ĐẤU GIÁ</Text>
-          <Text style={[styles.summaryValue, { color: Colors.amber }]}>
+          <Text
+            style={[styles.summaryValue, { color: Colors.amber }]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.7}
+          >
             {depositBal.toLocaleString('vi-VN')} ₫
           </Text>
         </View>
         <View style={styles.summaryVLine} />
         <View style={styles.summaryItem}>
-          <Text style={styles.summaryLabel}>KÝ QUỸ (ESCROW)</Text>
-          <Text style={[styles.summaryValue, { color: Colors.blue }]}>
+          <Text style={styles.summaryLabel}>KÝ QUỸ</Text>
+          <Text
+            style={[styles.summaryValue, { color: Colors.blue }]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.7}
+          >
             {escrowBal.toLocaleString('vi-VN')} ₫
           </Text>
         </View>
@@ -311,7 +328,7 @@ export default function TransactionsScreen() {
               />
               <Text style={styles.emptyTitle}>Chưa có bút toán nào trong mục này</Text>
               <Text style={styles.emptySub}>
-                Các giao dịch Nạp/Rút, Tiền đặt cọc đấu giá và Tiền ký quỹ chuyển nhượng SIM (Escrow) sẽ hiển thị chi tiết tại đây.
+                Các giao dịch Nạp/Rút, Tiền đặt cọc đấu giá và Tiền ký quỹ chuyển nhượng SIM sẽ hiển thị chi tiết tại đây.
               </Text>
             </View>
           }

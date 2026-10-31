@@ -17,7 +17,7 @@ export interface ContractStep {
 export const CONTRACT_STEPS: ContractStep[] = [
   {
     key: 'PendingEscrow',
-    label: 'Ký quỹ (Escrow)',
+    label: 'Ký quỹ',
     sublabel: 'Sàn giữ trung gian bảo đảm thanh toán',
   },
   {

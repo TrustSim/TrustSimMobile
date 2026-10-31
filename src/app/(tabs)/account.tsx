@@ -45,12 +45,14 @@ export default function IdentityAccountScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [verifiedSimsCount, setVerifiedSimsCount] = useState(0);
   const [kycData, setKycData] = useState<KycStatusDto | null>(null);
+  const [kycHistory, setKycHistory] = useState<KycStatusDto[]>([]);
 
   const loadAccountDetails = useCallback(async () => {
     try {
-      const [simRes, kycRes] = await Promise.allSettled([
+      const [simRes, kycRes, historyRes] = await Promise.allSettled([
         simService.getMyOwnerships({ pageIndex: 1, pageSize: 20 }),
         kycService.getKycStatus(),
+        kycService.getKycHistory({ pageIndex: 1, pageSize: 20 }),
       ]);
 
       if (simRes.status === 'fulfilled' && simRes.value.success && simRes.value.data?.items) {
@@ -58,6 +60,12 @@ export default function IdentityAccountScreen() {
       }
       if (kycRes.status === 'fulfilled' && kycRes.value.success && kycRes.value.data) {
         setKycData(kycRes.value.data);
+      }
+      if (historyRes.status === 'fulfilled' && historyRes.value.success && historyRes.value.data) {
+        const hItems = Array.isArray(historyRes.value.data)
+          ? historyRes.value.data
+          : historyRes.value.data.items || [];
+        setKycHistory(hItems);
       }
     } catch {
       // Ignore network errors quietly
@@ -91,8 +99,9 @@ export default function IdentityAccountScreen() {
   const isVerified = currentStatus === 'VERIFIED';
   const identityNumber = profile?.identityNumber || kycData?.identityNumber;
 
+  // 3 trụ cột bảo chứng (loại bỏ NFC theo yêu cầu)
   const completedPillars =
-    (isVerified ? 2 : 0) + (verifiedSimsCount > 0 ? 1 : 0) + (isVerified ? 1 : 0);
+    (isVerified ? 1 : 0) + (verifiedSimsCount > 0 ? 1 : 0) + (isVerified ? 1 : 0);
 
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
@@ -111,7 +120,7 @@ export default function IdentityAccountScreen() {
           </View>
           <View style={styles.trustScorePill}>
             <MaterialCommunityIcons name="shield-star" size={15} color={Colors.gold} />
-            <Text style={styles.trustScoreText}>Bảo chứng {completedPillars}/4</Text>
+            <Text style={styles.trustScoreText}>Bảo chứng {completedPillars}/3</Text>
           </View>
         </View>
 
@@ -153,7 +162,7 @@ export default function IdentityAccountScreen() {
             </View>
           ) : null}
 
-          {/* Action CTA if not yet verified */}
+          {/* Action CTA if not yet verified (loại bỏ NFC, chỉ chụp CCCD) */}
           {!isVerified && (
             <View style={styles.passportCtaRow}>
               <TouchableOpacity
@@ -163,27 +172,18 @@ export default function IdentityAccountScreen() {
               >
                 <MaterialCommunityIcons
                   name="camera-account"
-                  size={17}
+                  size={18}
                   color="#FFFFFF"
                 />
-                <Text style={styles.passportPrimaryBtnText}>Chụp CCCD & Khuôn mặt</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.passportSecondaryBtn}
-                onPress={() => router.push('/kyc/nfc')}
-                activeOpacity={0.85}
-              >
-                <MaterialCommunityIcons name="nfc-variant" size={17} color="#FDE68A" />
-                <Text style={styles.passportSecondaryBtnText}>Quét NFC</Text>
+                <Text style={styles.passportPrimaryBtnText}>Chụp CCCD & Khuôn mặt (eKYC)</Text>
               </TouchableOpacity>
             </View>
           )}
         </View>
 
-        {/* 4 Trụ cột Xác thực (Interactive Verification Pillars) */}
+        {/* 3 Trụ cột Xác thực (Đã loại bỏ NFC) */}
         <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionTitle}>4 Lớp bảo chứng giao dịch</Text>
+          <Text style={styles.sectionTitle}>3 Lớp bảo chứng giao dịch</Text>
         </View>
 
         <View style={styles.pillarsStack}>
@@ -208,7 +208,7 @@ export default function IdentityAccountScreen() {
             <View style={styles.pillarBody}>
               <Text style={styles.pillarTitle}>1. Căn cước công dân & Khuôn mặt</Text>
               <Text style={styles.pillarDesc}>
-                Chụp 2 mặt CCCD và ảnh chân dung trực tiếp (3 bước)
+                Chụp 2 mặt CCCD và ảnh chân dung trực tiếp để xác thực chính chủ
               </Text>
             </View>
             <VerificationStatusBadge
@@ -224,38 +224,7 @@ export default function IdentityAccountScreen() {
             />
           </TouchableOpacity>
 
-          {/* 2. NFC Chip */}
-          <TouchableOpacity
-            style={styles.pillarCard}
-            onPress={() => router.push('/kyc/nfc')}
-            activeOpacity={0.8}
-          >
-            <View
-              style={[
-                styles.pillarIconBox,
-                { backgroundColor: isVerified ? Colors.successLight : Colors.goldSoft },
-              ]}
-            >
-              <MaterialCommunityIcons
-                name="nfc-variant"
-                size={22}
-                color={isVerified ? Colors.success : Colors.gold}
-              />
-            </View>
-            <View style={styles.pillarBody}>
-              <Text style={styles.pillarTitle}>2. Quét chip NFC trên CCCD</Text>
-              <Text style={styles.pillarDesc}>
-                Đọc dữ liệu bảo mật ICAO 9303 trực tiếp từ chip điện tử
-              </Text>
-            </View>
-            <VerificationStatusBadge
-              status={isVerified ? 'verified' : 'checking'}
-              label={isVerified ? 'Đã khớp' : 'Quét chip'}
-              size="sm"
-            />
-          </TouchableOpacity>
-
-          {/* 3. SIM Chính chủ */}
+          {/* 2. SIM Chính chủ */}
           <TouchableOpacity
             style={styles.pillarCard}
             onPress={() => router.push('/(tabs)/sims')}
@@ -277,7 +246,7 @@ export default function IdentityAccountScreen() {
               />
             </View>
             <View style={styles.pillarBody}>
-              <Text style={styles.pillarTitle}>3. Thuê bao SIM chính chủ</Text>
+              <Text style={styles.pillarTitle}>2. Thuê bao SIM chính chủ</Text>
               <Text style={styles.pillarDesc}>
                 {verifiedSimsCount > 0
                   ? `Đã xác thực ${verifiedSimsCount} SIM chính chủ qua SMS OTP`
@@ -291,7 +260,7 @@ export default function IdentityAccountScreen() {
             />
           </TouchableOpacity>
 
-          {/* 4. Tài khoản ngân hàng nhận giải ngân */}
+          {/* 3. Tài khoản ngân hàng nhận giải ngân */}
           <TouchableOpacity
             style={styles.pillarCard}
             onPress={() => router.push('/withdraw')}
@@ -310,7 +279,7 @@ export default function IdentityAccountScreen() {
               />
             </View>
             <View style={styles.pillarBody}>
-              <Text style={styles.pillarTitle}>4. Ngân hàng nhận tiền giải ngân</Text>
+              <Text style={styles.pillarTitle}>3. Ngân hàng nhận tiền giải ngân</Text>
               <Text style={styles.pillarDesc}>
                 Rút tiền & nhận giải ngân ký quỹ về tài khoản ngân hàng chính chủ
               </Text>
@@ -322,6 +291,147 @@ export default function IdentityAccountScreen() {
             />
           </TouchableOpacity>
         </View>
+
+        {/* Lịch sử gửi định danh eKYC */}
+        <View style={[styles.sectionHeaderRow, { marginTop: Spacing.xl }]}>
+          <View style={styles.sectionTitleWithCount}>
+            <Text style={styles.sectionTitle}>Lịch sử gửi định danh eKYC</Text>
+            {kycHistory.length > 0 && (
+              <View style={styles.countPill}>
+                <Text style={styles.countPillText}>{kycHistory.length}</Text>
+              </View>
+            )}
+          </View>
+          <TouchableOpacity onPress={() => router.push('/kyc')} activeOpacity={0.75}>
+            <Text style={styles.sectionActionLink}>Chụp mới →</Text>
+          </TouchableOpacity>
+        </View>
+
+        {kycHistory.length === 0 ? (
+          <View style={styles.emptyKycCard}>
+            <View style={styles.emptyKycIconCircle}>
+              <MaterialCommunityIcons
+                name="card-account-details-outline"
+                size={26}
+                color={Colors.blue}
+              />
+            </View>
+            <Text style={styles.emptyKycTitle}>Chưa có lượt gửi eKYC nào</Text>
+            <Text style={styles.emptyKycSub}>
+              Khi bạn chụp ảnh CCCD và khuôn mặt gửi lên hệ thống, tiến trình và kết quả thẩm định eKYC sẽ hiển thị chi tiết tại đây.
+            </Text>
+            <TouchableOpacity
+              style={styles.emptyKycBtn}
+              onPress={() => router.push('/kyc')}
+              activeOpacity={0.88}
+            >
+              <MaterialCommunityIcons name="camera" size={16} color="#FFFFFF" />
+              <Text style={styles.emptyKycBtnText}>Thực hiện định danh ngay</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.kycHistoryStack}>
+            {kycHistory.map((item, idx) => {
+              const status = item.verificationStatus;
+              const dateStr = item.submittedAt
+                ? new Date(item.submittedAt).toLocaleDateString('vi-VN', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })
+                : '—';
+              const verifiedDateStr = item.verifiedAt
+                ? new Date(item.verifiedAt).toLocaleDateString('vi-VN', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })
+                : null;
+              const badge = getKycBadge(status);
+              const isMatchScore =
+                typeof item.faceSimilarityScore === 'number' && item.faceSimilarityScore > 0;
+
+              return (
+                <View key={item.id || String(idx)} style={styles.kycHistoryCard}>
+                  <View style={styles.kycCardTopRow}>
+                    <View style={styles.kycCodeBadgeRow}>
+                      <View style={styles.kycOrderBadge}>
+                        <Text style={styles.kycOrderText}>#{idx + 1}</Text>
+                      </View>
+                      <View>
+                        <Text style={styles.kycCodeText}>
+                          YÊU CẦU #{item.id?.slice(0, 8).toUpperCase() || 'EKYC'}
+                        </Text>
+                        <Text style={styles.kycDateText}>Gửi lúc: {dateStr}</Text>
+                      </View>
+                    </View>
+                    <VerificationStatusBadge status={badge.status} label={badge.label} size="sm" />
+                  </View>
+
+                  {/* Chi tiết thông tin đã trích xuất */}
+                  {(item.fullName || item.identityNumber || isMatchScore) && (
+                    <View style={styles.kycDetailGrid}>
+                      {item.fullName ? (
+                        <View style={styles.kycDetailItem}>
+                          <Text style={styles.kycDetailLabel}>Họ và tên</Text>
+                          <Text style={styles.kycDetailVal}>{item.fullName}</Text>
+                        </View>
+                      ) : null}
+                      {item.identityNumber ? (
+                        <View style={styles.kycDetailItem}>
+                          <Text style={styles.kycDetailLabel}>Số định danh</Text>
+                          <Text style={[styles.kycDetailVal, styles.monoVal]}>
+                            {maskIdCard(item.identityNumber)}
+                          </Text>
+                        </View>
+                      ) : null}
+                      {isMatchScore ? (
+                        <View style={styles.kycDetailItem}>
+                          <Text style={styles.kycDetailLabel}>Độ khớp khuôn mặt</Text>
+                          <Text style={[styles.kycDetailVal, { color: Colors.success }]}>
+                            {Math.round(item.faceSimilarityScore!)}%
+                          </Text>
+                        </View>
+                      ) : null}
+                    </View>
+                  )}
+
+                  {/* Lý do từ chối nếu có */}
+                  {status === 'REJECTED' && item.rejectionReason ? (
+                    <View style={styles.kycRejectionBox}>
+                      <MaterialCommunityIcons
+                        name="alert-circle-outline"
+                        size={16}
+                        color={Colors.danger}
+                      />
+                      <Text style={styles.kycRejectionText}>
+                        Lý do từ chối: {item.rejectionReason}
+                      </Text>
+                    </View>
+                  ) : null}
+
+                  {/* Thời gian hoàn tất xác minh */}
+                  {verifiedDateStr ? (
+                    <View style={styles.kycVerifiedTimeRow}>
+                      <MaterialCommunityIcons
+                        name="check-circle"
+                        size={14}
+                        color={Colors.success}
+                      />
+                      <Text style={styles.kycVerifiedTimeText}>
+                        Đã xác minh chính chủ vào {verifiedDateStr}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+              );
+            })}
+          </View>
+        )}
 
         {/* Thông tin hồ sơ trích xuất từ CCCD */}
         <View style={[styles.sectionHeaderRow, { marginTop: Spacing.xl }]}>
@@ -507,41 +617,21 @@ const styles = StyleSheet.create({
     lineHeight: 17,
   },
   passportCtaRow: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
     marginTop: Spacing.lg,
   },
   passportPrimaryBtn: {
-    flex: 1.4,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
+    gap: 7,
     backgroundColor: Colors.crimson,
     borderRadius: BorderRadius.md,
-    minHeight: 44,
+    minHeight: 46,
   },
   passportPrimaryBtnText: {
-    fontSize: 13,
+    fontSize: 13.5,
     fontWeight: '800',
     color: '#FFFFFF',
-  },
-  passportSecondaryBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(253, 230, 138, 0.35)',
-    borderRadius: BorderRadius.md,
-    minHeight: 44,
-  },
-  passportSecondaryBtnText: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#FDE68A',
   },
   sectionHeaderRow: {
     flexDirection: 'row',
@@ -549,11 +639,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: Spacing.md,
   },
+  sectionTitleWithCount: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   sectionTitle: {
     fontSize: 17,
     fontWeight: '800',
     color: Colors.navy,
     letterSpacing: -0.3,
+  },
+  countPill: {
+    backgroundColor: Colors.blueSoft,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.full,
+  },
+  countPillText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: Colors.blue,
+  },
+  sectionActionLink: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.blue,
   },
   pillarsStack: {
     gap: Spacing.sm,
@@ -590,6 +701,154 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     marginTop: 2,
     lineHeight: 16,
+  },
+  emptyKycCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.xl,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    ...Shadows.sm,
+  },
+  emptyKycIconCircle: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: Colors.blueSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.sm,
+  },
+  emptyKycTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: Colors.navy,
+  },
+  emptyKycSub: {
+    fontSize: 12.5,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 18,
+    marginTop: 4,
+  },
+  emptyKycBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: Colors.navy,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: BorderRadius.full,
+    marginTop: Spacing.md,
+  },
+  emptyKycBtnText: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  kycHistoryStack: {
+    gap: Spacing.sm,
+  },
+  kycHistoryCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    ...Shadows.sm,
+  },
+  kycCardTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.sm,
+  },
+  kycCodeBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  kycOrderBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: Colors.surfaceAlt,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+  },
+  kycOrderText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: Colors.navy,
+  },
+  kycCodeText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: Colors.navy,
+  },
+  kycDateText: {
+    fontSize: 11,
+    color: Colors.textMuted,
+    marginTop: 1,
+  },
+  kycDetailGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+    backgroundColor: Colors.surfaceAlt,
+    borderRadius: BorderRadius.sm,
+    padding: Spacing.sm + 2,
+    marginTop: Spacing.xs,
+  },
+  kycDetailItem: {
+    flex: 1,
+    minWidth: 100,
+  },
+  kycDetailLabel: {
+    fontSize: 10.5,
+    fontWeight: '600',
+    color: Colors.textMuted,
+  },
+  kycDetailVal: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: Colors.navy,
+    marginTop: 2,
+  },
+  kycRejectionBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+    backgroundColor: Colors.dangerLight,
+    borderWidth: 1,
+    borderColor: Colors.dangerBorder,
+    borderRadius: BorderRadius.xs,
+    padding: Spacing.sm,
+    marginTop: Spacing.sm,
+  },
+  kycRejectionText: {
+    flex: 1,
+    fontSize: 11.5,
+    color: Colors.danger,
+    lineHeight: 16,
+    fontWeight: '600',
+  },
+  kycVerifiedTimeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginTop: Spacing.sm,
+    paddingTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: Colors.borderLight,
+  },
+  kycVerifiedTimeText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: Colors.success,
   },
   recordCard: {
     backgroundColor: Colors.surface,

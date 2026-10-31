@@ -108,7 +108,7 @@ export default function ContractsAndEvidenceScreen() {
           </View>
           <View style={styles.escrowProtectionPill}>
             <MaterialCommunityIcons name="shield-lock" size={14} color={Colors.blue} />
-            <Text style={styles.escrowProtectionText}>Escrow 100%</Text>
+            <Text style={styles.escrowProtectionText}>Ký quỹ 100%</Text>
           </View>
         </View>
 
@@ -176,7 +176,7 @@ export default function ContractsAndEvidenceScreen() {
                 </View>
               </View>
               <Text style={styles.workflowHeroDesc}>
-                Tiền ký quỹ (Escrow) được sàn khóa an toàn. Hai bên hoàn tất ký hợp đồng điện tử bằng mã OTP trước khi mở khóa bước chụp bằng chứng sang tên tại điểm giao dịch.
+                Tiền ký quỹ được sàn khóa an toàn. Hai bên hoàn tất ký hợp đồng điện tử bằng mã OTP trước khi mở khóa bước chụp bằng chứng sang tên tại điểm giao dịch.
               </Text>
             </View>
 
@@ -254,8 +254,13 @@ export default function ContractsAndEvidenceScreen() {
                             </Text>
                           </View>
                           <View style={styles.escrowCol}>
-                            <Text style={styles.escrowLabel}>Tiền ký quỹ (Escrow)</Text>
-                            <Text style={styles.escrowVal}>
+                            <Text style={styles.escrowLabel}>Tiền ký quỹ</Text>
+                            <Text
+                              style={styles.escrowVal}
+                              numberOfLines={1}
+                              adjustsFontSizeToFit
+                              minimumFontScale={0.65}
+                            >
                               {(contract.escrowAmount ?? 0).toLocaleString('vi-VN')} ₫
                             </Text>
                           </View>

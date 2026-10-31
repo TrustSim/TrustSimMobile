@@ -176,13 +176,13 @@ export default function HomeScreen() {
       onPress: () => router.push(isVerified ? '/(tabs)/account' : '/kyc'),
     },
     {
-      key: 'nfc',
-      label: 'Quét NFC',
-      sub: 'CCCD gắn chip',
-      icon: 'nfc-variant' as const,
+      key: 'kyc-history',
+      label: 'Lịch sử eKYC',
+      sub: 'Hồ sơ duyệt',
+      icon: 'history' as const,
       color: '#1D4ED8',
       bgColor: '#EFF6FF',
-      onPress: () => router.push('/kyc/nfc'),
+      onPress: () => router.push('/(tabs)/account'),
     },
     {
       key: 'handover',
@@ -211,7 +211,7 @@ export default function HomeScreen() {
           <View style={styles.userCol}>
             <View style={styles.brandBadgeRow}>
               <View style={styles.brandLiveDot} />
-              <Text style={styles.brandSubText}>TrustSim Escrow Vault</Text>
+              <Text style={styles.brandSubText}>TrustSim Vault</Text>
             </View>
             <Text style={styles.userName} numberOfLines={1}>
               Xin chào, {displayName}
@@ -237,7 +237,12 @@ export default function HomeScreen() {
           <View style={styles.heroTopRow}>
             <View style={styles.balancePrimaryCol}>
               <Text style={styles.heroBalanceLabel}>Số dư ví khả dụng</Text>
-              <Text style={styles.heroPrimaryBalance}>
+              <Text
+                style={styles.heroPrimaryBalance}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.5}
+              >
                 {availableBal.toLocaleString('vi-VN')}{' '}
                 <Text style={styles.heroCurrencyUnit}>₫</Text>
               </Text>
@@ -253,7 +258,7 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* 2 Glass Cards: Tiền ký quỹ (Escrow) & Tiền cọc đấu giá */}
+          {/* 2 Glass Cards: Tiền ký quỹ & Tiền cọc đấu giá */}
           <View style={styles.glassGrid}>
             <TouchableOpacity
               style={styles.glassSubCard}
@@ -262,9 +267,14 @@ export default function HomeScreen() {
             >
               <View style={styles.glassTagRow}>
                 <View style={[styles.glassDot, { backgroundColor: '#38BDF8' }]} />
-                <Text style={styles.glassLabel}>Tiền ký quỹ (Escrow)</Text>
+                <Text style={styles.glassLabel}>Tiền ký quỹ</Text>
               </View>
-              <Text style={[styles.glassValue, { color: '#7DD3FC' }]}>
+              <Text
+                style={[styles.glassValue, { color: '#7DD3FC' }]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.65}
+              >
                 {escrowBal.toLocaleString('vi-VN')} ₫
               </Text>
               <Text style={styles.glassHint}>Bảo chứng hợp đồng SIM</Text>
@@ -279,7 +289,12 @@ export default function HomeScreen() {
                 <View style={[styles.glassDot, { backgroundColor: '#FBBF24' }]} />
                 <Text style={styles.glassLabel}>Tiền cọc đấu giá</Text>
               </View>
-              <Text style={[styles.glassValue, { color: '#FDE68A' }]}>
+              <Text
+                style={[styles.glassValue, { color: '#FDE68A' }]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.65}
+              >
                 {depositBal.toLocaleString('vi-VN')} ₫
               </Text>
               <Text style={styles.glassHint}>Giữ khi tham gia phiên</Text>
@@ -402,8 +417,13 @@ export default function HomeScreen() {
                       </View>
 
                       <View style={styles.dealEscrowBox}>
-                        <Text style={styles.dealEscrowLabel}>Ký quỹ (Escrow)</Text>
-                        <Text style={styles.dealEscrowValue}>
+                        <Text style={styles.dealEscrowLabel}>Ký quỹ</Text>
+                        <Text
+                          style={styles.dealEscrowValue}
+                          numberOfLines={1}
+                          adjustsFontSizeToFit
+                          minimumFontScale={0.7}
+                        >
                           {(trade.escrowAmount ?? 0).toLocaleString('vi-VN')} ₫
                         </Text>
                       </View>
@@ -496,11 +516,11 @@ export default function HomeScreen() {
               />
             </View>
             <View style={styles.trustBody}>
-              <Text style={styles.trustCardTitle}>Định danh công dân (eKYC & NFC)</Text>
+              <Text style={styles.trustCardTitle}>Định danh công dân (eKYC)</Text>
               <Text style={styles.trustCardSub}>
                 {isVerified
-                  ? 'Đã đối khớp CCCD gắn chip & sinh trắc học khuôn mặt'
-                  : 'Chụp CCCD 2 mặt + khuôn mặt hoặc quét chip NFC'}
+                  ? 'Đã đối khớp CCCD & sinh trắc học khuôn mặt'
+                  : 'Chụp CCCD 2 mặt & đối khớp khuôn mặt chính chủ'}
               </Text>
             </View>
             <MaterialCommunityIcons name="chevron-right" size={20} color={Colors.textMuted} />
