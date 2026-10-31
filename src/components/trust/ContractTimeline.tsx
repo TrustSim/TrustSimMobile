@@ -1,7 +1,6 @@
 /**
- * ContractTimeline — linear step tracker for contract flow.
- * Steps: Chờ ký → Đã ký → Chờ chuyển nhượng → Chờ xác minh → Hoàn tất
- * Never uses ambiguous "Đang xử lý".
+ * ContractTimeline — linear step tracker for contract & SIM transfer flow.
+ * Steps: Ký quỹ (Escrow) → Ký hợp đồng (OTP) → Sang tên & Bằng chứng → Nghiệm thu → Hoàn tất
  */
 import React from 'react';
 import { StyleSheet, Text, View, ViewStyle } from 'react-native';
@@ -16,61 +15,121 @@ export interface ContractStep {
 }
 
 export const CONTRACT_STEPS: ContractStep[] = [
-  { key: 'PendingEscrow',           label: 'Đặt cọc',          sublabel: 'Chờ thanh toán đặt cọc' },
-  { key: 'PendingContractSigning',  label: 'Ký hợp đồng',      sublabel: 'Chờ các bên ký' },
-  { key: 'PendingTransfer',         label: 'Chuyển nhượng',     sublabel: 'Chờ bàn giao SIM' },
-  { key: 'PendingVerification',     label: 'Xác minh',          sublabel: 'Chờ xác minh bằng chứng' },
-  { key: 'Completed',               label: 'Hoàn tất',          sublabel: 'Giao dịch thành công' },
+  {
+    key: 'PendingEscrow',
+    label: 'Ký quỹ (Escrow)',
+    sublabel: 'Sàn giữ trung gian bảo đảm thanh toán',
+  },
+  {
+    key: 'PendingSignature',
+    label: 'Ký hợp đồng (OTP)',
+    sublabel: 'Hai bên xác thực chữ ký điện tử bằng OTP',
+  },
+  {
+    key: 'PendingTransfer',
+    label: 'Sang tên & Bằng chứng',
+    sublabel: 'Sang tên tại nhà mạng & chụp biên nhận',
+  },
+  {
+    key: 'PendingVerification',
+    label: 'Nghiệm thu SIM',
+    sublabel: 'Người mua kiểm tra SIM & xác nhận chính chủ',
+  },
+  {
+    key: 'Completed',
+    label: 'Hoàn tất & Giải ngân',
+    sublabel: 'Giải ngân tiền ký quỹ cho người bán',
+  },
 ];
 
-// Map TradeTransactionStatus to step key
-function statusToStepIndex(status: TradeTransactionStatus | string): number {
+/**
+ * Kiểm tra xem giao dịch còn đang ở bước Ký quỹ hoặc Chờ ký hợp đồng bằng OTP hay không.
+ * Nếu đúng, bước chính tiếp theo phải là Ký hợp đồng (/contract/[tradeId]) chứ chưa tới bước Chụp bằng chứng (/handover/[tradeId]).
+ */
+export function isTradeAwaitingSignature(status?: TradeTransactionStatus | string | null): boolean {
+  if (!status) return true;
+  const s = String(status).trim();
+  return (
+    s === 'PendingSignature' ||
+    s === 'PendingContractSigning' ||
+    s === 'PENDING_SIGNATURE' ||
+    s === 'PENDING_CONTRACT_SIGNING' ||
+    s === 'PARTIALLY_SIGNED' ||
+    s === 'DRAFT' ||
+    s === 'PendingEscrow' ||
+    s === 'PENDING_ESCROW'
+  );
+}
+
+// Map TradeTransactionStatus to step index
+export function statusToStepIndex(status: TradeTransactionStatus | string): number {
+  const s = String(status || '').trim();
+  if (s.startsWith('Cancelled') || s === 'CANCELLED' || s === 'Disputed' || s === 'DISPUTED') {
+    return -1;
+  }
   const map: Record<string, number> = {
     PendingEscrow: 0,
+    PENDING_ESCROW: 0,
+    PendingSignature: 1,
     PendingContractSigning: 1,
+    PENDING_SIGNATURE: 1,
+    PENDING_CONTRACT_SIGNING: 1,
+    PARTIALLY_SIGNED: 1,
+    DRAFT: 1,
     PendingTransfer: 2,
+    PENDING_TRANSFER: 2,
+    PENDING_SELLER_ACTION: 2,
     PendingVerification: 3,
+    PENDING_VERIFICATION: 3,
+    SELLER_PROOF_SUBMITTED: 3,
+    PENDING_BUYER_ACTION: 3,
     Completed: 4,
-    Cancelled: -1,
-    Disputed: -1,
+    COMPLETED: 4,
   };
-  return map[status] ?? 0;
+  return map[s] ?? 1;
 }
 
 interface ContractTimelineProps {
   status: TradeTransactionStatus | string;
-  /** Compact mode — smaller and horizontal-scrollable for list items */
+  /** Compact mode — smaller and horizontal for list items */
   compact?: boolean;
   style?: ViewStyle;
 }
 
 export function ContractTimeline({ status, compact = false, style }: ContractTimelineProps) {
-  const isCancelled = status === 'Cancelled' || status === 'Disputed';
-  const currentIndex = statusToStepIndex(status);
+  const s = String(status || '').trim();
+  const isDisputed = s === 'Disputed' || s === 'DISPUTED';
+  const isCancelled = s.startsWith('Cancelled') || s === 'CANCELLED' || isDisputed;
+  const currentIndex = statusToStepIndex(s);
 
   if (compact) {
-    // Horizontal mini dots for list use
     return (
       <View style={[styles.compactRow, style]}>
         {CONTRACT_STEPS.map((step, i) => {
-          const isDone = i < currentIndex;
+          const isDone = !isCancelled && i < currentIndex;
           const isActive = i === currentIndex && !isCancelled;
           return (
             <React.Fragment key={step.key}>
               {i > 0 && (
                 <View style={[styles.compactLine, isDone && styles.compactLineDone]} />
               )}
-              <View style={[
-                styles.compactDot,
-                isDone && styles.compactDotDone,
-                isActive && styles.compactDotActive,
-                isCancelled && styles.compactDotCancelled,
-              ]} />
+              <View
+                style={[
+                  styles.compactDot,
+                  isDone && styles.compactDotDone,
+                  isActive && styles.compactDotActive,
+                  isCancelled && styles.compactDotCancelled,
+                ]}
+              />
             </React.Fragment>
           );
         })}
         <Text style={styles.compactLabel}>
-          {isCancelled ? (status === 'Disputed' ? 'Tranh chấp' : 'Đã hủy') : CONTRACT_STEPS[Math.max(0, currentIndex)]?.label}
+          {isCancelled
+            ? isDisputed
+              ? 'Đang khiếu nại tranh chấp'
+              : 'Đã hủy giao dịch'
+            : CONTRACT_STEPS[Math.max(0, currentIndex)]?.label}
         </Text>
       </View>
     );
@@ -82,13 +141,13 @@ export function ContractTimeline({ status, compact = false, style }: ContractTim
         <View style={styles.cancelledBanner}>
           <MaterialCommunityIcons name="cancel" size={16} color={Colors.danger} />
           <Text style={styles.cancelledText}>
-            {status === 'Disputed' ? 'Giao dịch đang tranh chấp' : 'Hợp đồng đã bị hủy'}
+            {isDisputed ? 'Giao dịch đang tranh chấp' : 'Hợp đồng đã bị hủy'}
           </Text>
         </View>
       )}
 
       {CONTRACT_STEPS.map((step, i) => {
-        const isDone = i < currentIndex;
+        const isDone = !isCancelled && i < currentIndex;
         const isActive = i === currentIndex && !isCancelled;
         const isLast = i === CONTRACT_STEPS.length - 1;
 
@@ -96,12 +155,14 @@ export function ContractTimeline({ status, compact = false, style }: ContractTim
           <View key={step.key} style={styles.stepRow}>
             {/* Connector line */}
             <View style={styles.stepLeft}>
-              <View style={[
-                styles.dot,
-                isDone && styles.dotDone,
-                isActive && styles.dotActive,
-                isCancelled && !isDone && styles.dotMuted,
-              ]}>
+              <View
+                style={[
+                  styles.dot,
+                  isDone && styles.dotDone,
+                  isActive && styles.dotActive,
+                  isCancelled && !isDone && styles.dotMuted,
+                ]}
+              >
                 {isDone ? (
                   <MaterialCommunityIcons name="check" size={12} color="#fff" />
                 ) : isActive ? (
@@ -115,12 +176,14 @@ export function ContractTimeline({ status, compact = false, style }: ContractTim
 
             {/* Content */}
             <View style={[styles.stepContent, !isLast && styles.stepContentGap]}>
-              <Text style={[
-                styles.stepLabel,
-                isActive && styles.stepLabelActive,
-                isDone && styles.stepLabelDone,
-                isCancelled && !isDone && styles.stepLabelMuted,
-              ]}>
+              <Text
+                style={[
+                  styles.stepLabel,
+                  isActive && styles.stepLabelActive,
+                  isDone && styles.stepLabelDone,
+                  isCancelled && !isDone && styles.stepLabelMuted,
+                ]}
+              >
                 {step.label}
               </Text>
               {(isActive || isDone) && step.sublabel ? (
@@ -215,6 +278,12 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     lineHeight: DOT_SIZE,
   },
+  stepSublabel: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginTop: 2,
+    lineHeight: 16,
+  },
   stepLabelActive: {
     color: Colors.blue,
     fontWeight: '700',
@@ -224,12 +293,6 @@ const styles = StyleSheet.create({
   },
   stepLabelMuted: {
     color: Colors.textMuted,
-  },
-  stepSublabel: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    marginTop: 2,
-    lineHeight: 16,
   },
   // Compact
   compactRow: {
@@ -271,4 +334,3 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
 });
-

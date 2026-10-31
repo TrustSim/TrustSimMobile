@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Config } from '../constants/Config';
 import { apiClient, setOnSessionExpired } from '../services/apiClient';
 import { authService } from '../services/authService';
+import { contractService } from '../services/contractService';
 import { appStorage } from '../services/storage';
 import { walletService } from '../services/walletService';
 import {
@@ -9,15 +10,53 @@ import {
   LoginRequestDto,
   RegisterInitiatedDto,
   RegisterRequestDto,
+  TradeTransactionDto,
   UserProfileDto,
   VerifyEmailRequestDto,
   WalletDto,
 } from '../types';
 
+function isTradeEscrowHeld(t: TradeTransactionDto): boolean {
+  const es = String(t.escrowStatus || '').toUpperCase();
+  if (es === 'HELD' || es === 'FROZEN') return true;
+  if (
+    es === 'RELEASED' ||
+    es === 'REFUNDED' ||
+    es === 'CANCELLED' ||
+    es === 'PENDING_FUNDING'
+  ) {
+    return false;
+  }
+  const st = String(t.status || '').trim();
+  return (
+    st === 'PendingSignature' ||
+    st === 'PendingContractSigning' ||
+    st === 'PendingTransfer' ||
+    st === 'PendingVerification' ||
+    st === 'Disputed'
+  );
+}
+
+function computeEscrowBalance(trades: TradeTransactionDto[], currentUserId?: string): number {
+  const heldTrades = trades.filter(isTradeEscrowHeld);
+  if (heldTrades.length === 0) return 0;
+
+  if (currentUserId) {
+    const uid = currentUserId.toLowerCase();
+    const buyerHeld = heldTrades.filter((t) => (t.buyerId || '').toLowerCase() === uid);
+    if (buyerHeld.length > 0) {
+      return buyerHeld.reduce((sum, t) => sum + (t.escrowAmount ?? 0), 0);
+    }
+  }
+
+  return heldTrades.reduce((sum, t) => sum + (t.escrowAmount ?? 0), 0);
+}
+
 interface AuthContextType {
   user: AuthResponseDto | null;
   profile: UserProfileDto | null;
   wallet: WalletDto | null;
+  escrowBalance: number;
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (data: LoginRequestDto) => Promise<void>;
@@ -34,20 +73,43 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<AuthResponseDto | null>(null);
   const [profile, setProfile] = useState<UserProfileDto | null>(null);
   const [wallet, setWallet] = useState<WalletDto | null>(null);
+  const [escrowBalance, setEscrowBalance] = useState<number>(0);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  const loadProfileAndWallet = React.useCallback(async () => {
+  const loadProfileAndWallet = React.useCallback(async (knownUserId?: string) => {
     try {
-      const [profileRes, walletRes] = await Promise.allSettled([
+      const [profileRes, walletRes, tradesRes] = await Promise.allSettled([
         authService.getProfile(),
         walletService.getWallet(),
+        contractService.getMyContracts({ pageIndex: 1, pageSize: 50 }),
       ]);
 
-      if (profileRes.status === 'fulfilled' && profileRes.value.success) {
+      let resolvedUserId = knownUserId;
+      if (profileRes.status === 'fulfilled' && profileRes.value.success && profileRes.value.data) {
         setProfile(profileRes.value.data);
+        resolvedUserId = resolvedUserId || profileRes.value.data.userId;
       }
-      if (walletRes.status === 'fulfilled' && walletRes.value.success) {
-        setWallet(walletRes.value.data);
+
+      let computedEscrow = 0;
+      if (
+        tradesRes.status === 'fulfilled' &&
+        tradesRes.value.success &&
+        tradesRes.value.data?.items
+      ) {
+        computedEscrow = computeEscrowBalance(tradesRes.value.data.items, resolvedUserId);
+        setEscrowBalance(computedEscrow);
+      }
+
+      if (walletRes.status === 'fulfilled' && walletRes.value.success && walletRes.value.data) {
+        const w = walletRes.value.data;
+        const avail = w.availableBalance ?? 0;
+        const locked = w.lockedBalance ?? 0;
+        const escrow = w.escrowBalance ?? computedEscrow;
+        setWallet({
+          ...w,
+          escrowBalance: escrow,
+          totalBalance: avail + locked + escrow,
+        });
       }
     } catch {
       // Silently ignore if offline
@@ -62,11 +124,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const storedUser = await appStorage.getItem(Config.USER_STORAGE_KEY);
 
         if (storedToken && storedUser) {
-          const parsedUser = JSON.parse(storedUser);
+          const parsedUser: AuthResponseDto = JSON.parse(storedUser);
           setUser(parsedUser);
           apiClient.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
-          // Silently fetch fresh profile and wallet
-          loadProfileAndWallet();
+          loadProfileAndWallet(parsedUser?.userId);
         }
       } catch (err) {
         console.warn('Init auth failed:', err);
@@ -82,59 +143,70 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(null);
       setProfile(null);
       setWallet(null);
+      setEscrowBalance(0);
     });
   }, [loadProfileAndWallet]);
 
-  const login = React.useCallback(async (data: LoginRequestDto) => {
-    setIsLoading(true);
-    try {
-      const res = await authService.login(data);
-      if (res.success && res.data) {
-        const authData = res.data;
-        setUser(authData);
-        await appStorage.setItem(Config.TOKEN_STORAGE_KEY, authData.token);
-        await appStorage.setItem(Config.USER_STORAGE_KEY, JSON.stringify(authData));
-        apiClient.defaults.headers.common['Authorization'] = `Bearer ${authData.token}`;
-        await loadProfileAndWallet();
-      } else {
-        throw new Error(res.message || 'Đăng nhập không thành công');
+  const login = React.useCallback(
+    async (data: LoginRequestDto) => {
+      setIsLoading(true);
+      try {
+        const res = await authService.login(data);
+        if (res.success && res.data) {
+          const authData = res.data;
+          setUser(authData);
+          await appStorage.setItem(Config.TOKEN_STORAGE_KEY, authData.token);
+          await appStorage.setItem(Config.USER_STORAGE_KEY, JSON.stringify(authData));
+          apiClient.defaults.headers.common['Authorization'] = `Bearer ${authData.token}`;
+          await loadProfileAndWallet(authData.userId);
+        } else {
+          throw new Error(res.message || 'Đăng nhập không thành công');
+        }
+      } finally {
+        setIsLoading(false);
       }
-    } finally {
-      setIsLoading(false);
-    }
-  }, [loadProfileAndWallet]);
+    },
+    [loadProfileAndWallet]
+  );
 
-  const register = React.useCallback(async (data: RegisterRequestDto): Promise<RegisterInitiatedDto> => {
-    const res = await authService.register(data);
-    if (res.success && res.data) {
-      return res.data;
-    }
-    throw new Error(res.message || 'Khởi tạo đăng ký thất bại');
-  }, []);
-
-  const verifyEmail = React.useCallback(async (data: VerifyEmailRequestDto) => {
-    setIsLoading(true);
-    try {
-      const res = await authService.verifyEmail(data);
+  const register = React.useCallback(
+    async (data: RegisterRequestDto): Promise<RegisterInitiatedDto> => {
+      const res = await authService.register(data);
       if (res.success && res.data) {
-        const authData = res.data;
-        setUser(authData);
-        await appStorage.setItem(Config.TOKEN_STORAGE_KEY, authData.token);
-        await appStorage.setItem(Config.USER_STORAGE_KEY, JSON.stringify(authData));
-        apiClient.defaults.headers.common['Authorization'] = `Bearer ${authData.token}`;
-        await loadProfileAndWallet();
-      } else {
-        throw new Error(res.message || 'Xác thực OTP email thất bại');
+        return res.data;
       }
-    } finally {
-      setIsLoading(false);
-    }
-  }, [loadProfileAndWallet]);
+      throw new Error(res.message || 'Khởi tạo đăng ký thất bại');
+    },
+    []
+  );
+
+  const verifyEmail = React.useCallback(
+    async (data: VerifyEmailRequestDto) => {
+      setIsLoading(true);
+      try {
+        const res = await authService.verifyEmail(data);
+        if (res.success && res.data) {
+          const authData = res.data;
+          setUser(authData);
+          await appStorage.setItem(Config.TOKEN_STORAGE_KEY, authData.token);
+          await appStorage.setItem(Config.USER_STORAGE_KEY, JSON.stringify(authData));
+          apiClient.defaults.headers.common['Authorization'] = `Bearer ${authData.token}`;
+          await loadProfileAndWallet(authData.userId);
+        } else {
+          throw new Error(res.message || 'Xác thực OTP email thất bại');
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [loadProfileAndWallet]
+  );
 
   const logout = React.useCallback(async () => {
     setUser(null);
     setProfile(null);
     setWallet(null);
+    setEscrowBalance(0);
     delete apiClient.defaults.headers.common['Authorization'];
     try {
       await appStorage.removeItem(Config.TOKEN_STORAGE_KEY);
@@ -142,7 +214,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (err) {
       console.warn('Error clearing storage:', err);
     }
-    // Fire logout API to backend in background (non-blocking)
     authService.logout().catch(() => {});
   }, []);
 
@@ -159,14 +230,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const refreshWallet = React.useCallback(async () => {
     try {
-      const res = await walletService.getWallet();
-      if (res.success) {
-        setWallet(res.data);
+      const [walletRes, tradesRes] = await Promise.allSettled([
+        walletService.getWallet(),
+        contractService.getMyContracts({ pageIndex: 1, pageSize: 50 }),
+      ]);
+
+      let computedEscrow = escrowBalance;
+      if (
+        tradesRes.status === 'fulfilled' &&
+        tradesRes.value.success &&
+        tradesRes.value.data?.items
+      ) {
+        computedEscrow = computeEscrowBalance(
+          tradesRes.value.data.items,
+          user?.userId || profile?.userId
+        );
+        setEscrowBalance(computedEscrow);
+      }
+
+      if (walletRes.status === 'fulfilled' && walletRes.value.success && walletRes.value.data) {
+        const w = walletRes.value.data;
+        const avail = w.availableBalance ?? 0;
+        const locked = w.lockedBalance ?? 0;
+        const escrow = w.escrowBalance ?? computedEscrow;
+        setWallet({
+          ...w,
+          escrowBalance: escrow,
+          totalBalance: avail + locked + escrow,
+        });
       }
     } catch {
       // Silently ignore if offline
     }
-  }, []);
+  }, [escrowBalance, user?.userId, profile?.userId]);
 
   return (
     <AuthContext.Provider
@@ -174,6 +270,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         user,
         profile,
         wallet,
+        escrowBalance,
         isAuthenticated: !!user,
         isLoading,
         login,

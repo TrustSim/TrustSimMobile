@@ -23,8 +23,34 @@ export type WalletStatus = 'ACTIVE' | 'FROZEN' | 'LOCKED';
 export type WalletTransactionType = 'TOP_UP' | 'WITHDRAW';
 export type TransactionStatus = 'PENDING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
 export type OwnershipStatus = 'UNVERIFIED' | 'ACTIVE' | 'ENDED' | 'DISPUTED' | 'REVOKED';
-export type ContractStatus = 'DRAFT' | 'PENDING_BUYER_SIGNATURE' | 'PENDING_SELLER_SIGNATURE' | 'FULLY_SIGNED' | 'CANCELLED' | 'EXPIRED';
-export type TradeTransactionStatus = 'PendingEscrow' | 'PendingContractSigning' | 'PendingTransfer' | 'Completed' | 'Cancelled' | 'Disputed';
+export type ContractStatus =
+  | 'DRAFT'
+  | 'PENDING_SIGNATURE'
+  | 'PARTIALLY_SIGNED'
+  | 'PENDING_BUYER_SIGNATURE'
+  | 'PENDING_SELLER_SIGNATURE'
+  | 'FULLY_SIGNED'
+  | 'OFFLINE_PROCESSING'
+  | 'PENDING_VERIFICATION'
+  | 'COMPLETED'
+  | 'DISPUTED'
+  | 'CANCELLED'
+  | 'EXPIRED'
+  | string;
+export type TradeTransactionStatus =
+  | 'PendingEscrow'
+  | 'PendingSignature'
+  | 'PendingContractSigning'
+  | 'PendingTransfer'
+  | 'PendingVerification'
+  | 'Completed'
+  | 'Cancelled'
+  | 'Cancelled_EscrowTimeout'
+  | 'Cancelled_SigningTimeout'
+  | 'Cancelled_TransferTimeout'
+  | 'Cancelled_ByAdmin'
+  | 'Disputed'
+  | string;
 export type SimOwnershipSortByLegacy = 'CreatedDate_Desc' | 'CreatedDate_Asc' | 'AssignedDate_Desc' | 'Status_Desc';
 
 export enum SortOrder {
@@ -146,6 +172,7 @@ export interface WalletDto {
   userAccountId: string;
   availableBalance: number;
   lockedBalance: number;
+  escrowBalance?: number;
   totalBalance: number;
   walletStatus: WalletStatus;
   lockVersion: number;
@@ -315,6 +342,8 @@ export interface ContractPreviewDto {
   tradeCode?: string;
   contractId?: string;
   contractStatus: ContractStatus;
+  isFullySigned?: boolean;
+  isAutoEnforced?: boolean;
   buyerFullName?: string;
   buyerName?: string;
   buyerSigned: boolean;
@@ -327,6 +356,12 @@ export interface ContractPreviewDto {
   documentPdfUrl?: string | null;
   pdfDocumentUrl?: string | null;
   winningNoticeUrl?: string;
+  winningNoticeHash?: string;
+  liquidationDocumentUrl?: string;
+  liquidationDocumentHash?: string;
+  signingDeadline?: string | null;
+  transferDeadline?: string | null;
+  liquidationDeadline?: string | null;
   simPhoneNumber?: string;
   simNumber?: string;
   escrowAmount?: number;
@@ -404,6 +439,7 @@ export interface SimTransferProgressDto {
   platformFeeAmount?: number;
   netSellerPayout?: number;
   completedAt?: string;
+  liquidationDocumentUrl?: string;
   message?: string;
 }
 
@@ -419,7 +455,6 @@ export interface SimTransferConfirmResultDto {
   completedAt?: string;
   message?: string;
 }
-
 
 // Dispute & Evidence Types
 export type DisputeStatus = 'OPEN' | 'IN_REVIEW' | 'RESOLVED_REFUND_BUYER' | 'RESOLVED_PAY_SELLER' | 'REJECTED' | string;

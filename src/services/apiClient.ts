@@ -47,8 +47,7 @@ apiClient.interceptors.request.use(async (config) => {
 
   // Handle FormData in React Native:
   // 1. Prevent Axios default transformRequest from serializing FormData into JSON string
-  // 2. Strip 'Content-Type' so native networking layer (OkHttp / NSURLSession) automatically
-  //    generates 'multipart/form-data; boundary=...'
+  // 2. Set 'multipart/form-data' so Axios 1.x on React Native does not default to application/json
   const isFormData =
     config.data instanceof FormData ||
     (config.data && typeof config.data === 'object' && '_parts' in config.data);
@@ -56,11 +55,10 @@ apiClient.interceptors.request.use(async (config) => {
   if (isFormData) {
     config.transformRequest = [(data) => data];
     if (config.headers) {
-      delete config.headers['Content-Type'];
-      delete config.headers['content-type'];
-      if (typeof (config.headers as any).delete === 'function') {
-        (config.headers as any).delete('Content-Type');
-        (config.headers as any).delete('content-type');
+      if (typeof (config.headers as any).setContentType === 'function') {
+        (config.headers as any).setContentType('multipart/form-data');
+      } else {
+        config.headers['Content-Type'] = 'multipart/form-data';
       }
     }
   }

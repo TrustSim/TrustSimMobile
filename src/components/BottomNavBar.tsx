@@ -1,11 +1,11 @@
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View, ViewStyle } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { BorderRadius, Colors, Spacing } from '../constants/theme';
+import { Colors } from '../constants/theme';
 
-export type NavTabId = 'home' | 'sims' | 'wallet' | 'account' | 'none';
+export type NavTabId = 'home' | 'sims' | 'contracts' | 'wallet' | 'account' | 'none';
 
 interface BottomNavBarProps {
   activeTab?: NavTabId;
@@ -16,38 +16,45 @@ interface TabConfig {
   id: NavTabId;
   label: string;
   route: string;
-  iconActive: keyof typeof Ionicons.glyphMap;
-  iconInactive: keyof typeof Ionicons.glyphMap;
+  iconActive: keyof typeof MaterialCommunityIcons.glyphMap;
+  iconInactive: keyof typeof MaterialCommunityIcons.glyphMap;
 }
 
 const TABS: TabConfig[] = [
   {
     id: 'home',
-    label: 'Trang Chủ',
+    label: 'Tổng quan',
     route: '/(tabs)',
-    iconActive: 'home',
-    iconInactive: 'home-outline',
+    iconActive: 'view-dashboard',
+    iconInactive: 'view-dashboard-outline',
   },
   {
     id: 'sims',
-    label: 'Kho SIM',
+    label: 'Xác thực SIM',
     route: '/(tabs)/sims',
-    iconActive: 'phone-portrait',
-    iconInactive: 'phone-portrait-outline',
+    iconActive: 'sim',
+    iconInactive: 'sim-outline',
+  },
+  {
+    id: 'contracts',
+    label: 'Bằng chứng',
+    route: '/(tabs)/contracts',
+    iconActive: 'camera-document',
+    iconInactive: 'camera-document',
   },
   {
     id: 'wallet',
-    label: 'Ví Tiền',
+    label: 'Ví tiền',
     route: '/(tabs)/wallet',
     iconActive: 'wallet',
     iconInactive: 'wallet-outline',
   },
   {
     id: 'account',
-    label: 'Cá Nhân',
+    label: 'Định danh',
     route: '/(tabs)/account',
-    iconActive: 'person',
-    iconInactive: 'person-outline',
+    iconActive: 'shield-account',
+    iconInactive: 'shield-account-outline',
   },
 ];
 
@@ -57,6 +64,8 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
 }) => {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const bottomInset = Math.max(insets.bottom, 8);
+  const tabHeight = 56 + bottomInset;
 
   const handleTabPress = (route: string) => {
     router.replace(route as any);
@@ -66,7 +75,10 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
     <View
       style={[
         styles.container,
-        { paddingBottom: Math.max(insets.bottom, 8) },
+        {
+          height: tabHeight,
+          paddingBottom: bottomInset,
+        },
         style,
       ]}
     >
@@ -74,25 +86,26 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
         {TABS.map((tab) => {
           const isActive = activeTab === tab.id;
           const iconName = isActive ? tab.iconActive : tab.iconInactive;
-          const tintColor = isActive ? Colors.primary : Colors.textMuted;
+          const tintColor = isActive ? Colors.navy : Colors.textMuted;
 
           return (
             <TouchableOpacity
               key={tab.id}
               style={styles.tabButton}
               onPress={() => handleTabPress(tab.route)}
-              activeOpacity={0.7}
-              hitSlop={{ top: 8, bottom: 8, left: 12, right: 12 }}
+              activeOpacity={0.75}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: isActive }}
+              accessibilityLabel={tab.label}
             >
-              <View style={[styles.iconContainer, isActive && styles.iconActiveContainer]}>
-                <Ionicons name={iconName} size={22} color={tintColor} />
-              </View>
+              <MaterialCommunityIcons name={iconName} size={22} color={tintColor} />
               <Text
                 style={[
                   styles.tabLabel,
                   { color: tintColor },
-                  isActive && styles.tabLabelActive,
                 ]}
+                numberOfLines={1}
               >
                 {tab.label}
               </Text>
@@ -108,42 +121,26 @@ const styles = StyleSheet.create({
   container: {
     backgroundColor: Colors.surface,
     borderTopWidth: 1,
-    borderTopColor: Colors.borderLight,
-    paddingTop: Spacing.xs + 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 8,
+    borderTopColor: Colors.border,
+    paddingTop: 6,
+    elevation: 0,
+    shadowOpacity: 0,
   },
   innerRow: {
+    flex: 1,
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'center',
-    height: 50,
   },
   tabButton: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  iconContainer: {
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 2,
-    borderRadius: BorderRadius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  iconActiveContainer: {
-    backgroundColor: 'rgba(30, 58, 138, 0.08)',
+    gap: 3,
   },
   tabLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  tabLabelActive: {
-    fontWeight: '800',
-    color: Colors.primary,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.1,
   },
 });
