@@ -16,7 +16,6 @@ import { useFocusEffect, useIsFocused, useLocalSearchParams, useRouter } from 'e
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import { kycStore } from '../../services/kycStore';
-import * as Brightness from 'expo-brightness';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -41,8 +40,6 @@ export default function CameraSelfieScreen() {
   const [focusPoint, setFocusPoint] = useState<{ x: number; y: number } | null>(null);
 
   const cameraRef = useRef<any>(null);
-  const originalBrightnessRef = useRef<number | null>(null);
-  const wasUsingSystemBrightnessRef = useRef<boolean>(false);
 
   // Guarantee portrait orientation on this screen
   useFocusEffect(
@@ -50,36 +47,6 @@ export default function CameraSelfieScreen() {
       ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
     }, [])
   );
-
-  // Safely restore brightness on Android and iOS across all states
-  const restoreBrightness = useCallback(async () => {
-    try {
-      if (Platform.OS === 'android') {
-        // If Android was using system/auto brightness or returned negative value, reset override
-        if (
-          wasUsingSystemBrightnessRef.current ||
-          (originalBrightnessRef.current !== null && originalBrightnessRef.current < 0)
-        ) {
-          await Brightness.restoreSystemBrightnessAsync();
-        } else if (originalBrightnessRef.current !== null) {
-          await Brightness.setBrightnessAsync(
-            Math.max(0, Math.min(1, originalBrightnessRef.current))
-          );
-        }
-      } else {
-        if (originalBrightnessRef.current !== null) {
-          await Brightness.setBrightnessAsync(
-            Math.max(0, Math.min(1, originalBrightnessRef.current))
-          );
-        }
-      }
-    } catch {
-      // Ignore restore error
-    } finally {
-      originalBrightnessRef.current = null;
-      wasUsingSystemBrightnessRef.current = false;
-    }
-  }, []);
 
   // Mount camera with safety delay to unbind previous hardware session
   useEffect(() => {
@@ -100,18 +67,10 @@ export default function CameraSelfieScreen() {
     };
   }, [isFocused]);
 
-  // Safety net: Restore brightness on unmount
-  useEffect(() => {
-    return () => {
-      restoreBrightness().catch(() => {});
-    };
-  }, [restoreBrightness]);
-
-  // Safety net: Restore brightness if app goes to background / user locks screen mid-flash
+  // Dismiss the visual flash if the app goes to background mid-capture.
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextAppState) => {
       if (nextAppState === 'inactive' || nextAppState === 'background') {
-        restoreBrightness().catch(() => {});
         setIsFlashing(false);
         setIsCapturing(false);
       }
@@ -120,7 +79,7 @@ export default function CameraSelfieScreen() {
     return () => {
       subscription.remove();
     };
-  }, [restoreBrightness]);
+  }, []);
 
   const handleBack = useCallback(() => {
     if (isCapturing || isSubmitting) return;
@@ -128,9 +87,8 @@ export default function CameraSelfieScreen() {
       setCapturedUri(null);
       return;
     }
-    restoreBrightness().catch(() => {});
     router.back();
-  }, [capturedUri, isCapturing, isSubmitting, restoreBrightness, router]);
+  }, [capturedUri, isCapturing, isSubmitting, router]);
 
   // Intercept Android hardware back button
   useEffect(() => {
@@ -159,26 +117,11 @@ export default function CameraSelfieScreen() {
     setIsCapturing(true);
 
     try {
-      // 1. Read & save current brightness state (handle Android auto-brightness flag)
-      try {
-        if (Platform.OS === 'android') {
-          wasUsingSystemBrightnessRef.current = await Brightness.isUsingSystemBrightnessAsync();
-        }
-        const current = await Brightness.getBrightnessAsync();
-        originalBrightnessRef.current = current;
-      } catch {
-        // Fallback if platform does not permit reading brightness
-      }
-
-      // 2. Trigger white screen flash effect & elevate brightness to 100%
+      // Trigger an in-app white flash. Avoid changing system brightness because
+      // several Android devices and Expo Go builds restrict that native API.
       setIsFlashing(true);
-      try {
-        await Brightness.setBrightnessAsync(1.0);
-      } catch {
-        // Fallback if platform does not permit setting brightness
-      }
 
-      // 3. Wait 450ms for camera ISP Auto-Exposure (AE/AWB) to converge on screen fill light
+      // Wait briefly for camera auto-exposure / white balance to converge.
       await new Promise((resolve) => setTimeout(resolve, 450));
 
       // 4. Capture selfie photograph
@@ -203,8 +146,7 @@ export default function CameraSelfieScreen() {
       Alert.alert('Lỗi máy ảnh', 'Có lỗi xảy ra khi chụp ảnh chân dung. Vui lòng thử lại.');
       return;
     } finally {
-      // 5. Instantly restore original brightness and dismiss screen flash
-      await restoreBrightness();
+      // Dismiss the in-app flash regardless of capture outcome.
       setIsFlashing(false);
       setIsCapturing(false);
     }

@@ -20,7 +20,7 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: Colors.blue,
+        tabBarActiveTintColor: Colors.navy,
         tabBarInactiveTintColor: Colors.textMuted,
         tabBarStyle: {
           backgroundColor: Colors.surface,
@@ -29,9 +29,11 @@ export default function TabLayout() {
           height: tabHeight,
           paddingBottom: bottomInset,
           paddingTop: 6,
+          elevation: 0,
+          shadowOpacity: 0,
         },
         tabBarLabelStyle: {
-          fontSize: 11,
+          fontSize: 10,
           fontWeight: '700',
           letterSpacing: 0.1,
         },
@@ -40,48 +42,71 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Trang Chủ',
-          tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="home-outline" size={size ?? 22} color={color as string} />
+          title: 'Tổng quan',
+          tabBarIcon: ({ color, focused }) => (
+            <MaterialCommunityIcons
+              name={focused ? 'view-dashboard' : 'view-dashboard-outline'}
+              size={22}
+              color={color as string}
+            />
           ),
-          tabBarActiveTintColor: Colors.blue,
         }}
       />
       <Tabs.Screen
-        name="wallet"
+        name="sims"
         options={{
-          title: 'Ví Tiền',
-          tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="wallet-outline" size={size ?? 22} color={color as string} />
+          title: 'Xác thực SIM',
+          tabBarIcon: ({ color, focused }) => (
+            <MaterialCommunityIcons
+              name={focused ? 'sim' : 'sim-outline'}
+              size={22}
+              color={color as string}
+            />
           ),
         }}
       />
       <Tabs.Screen
         name="contracts"
         options={{
-          title: 'Hợp Đồng',
-          tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="file-document-outline" size={size ?? 22} color={color as string} />
+          title: 'Bằng chứng',
+          tabBarIcon: ({ color }) => (
+            <MaterialCommunityIcons
+              name="camera-document"
+              size={22}
+              color={color as string}
+            />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="wallet"
+        options={{
+          title: 'Ví tiền',
+          tabBarIcon: ({ color, focused }) => (
+            <MaterialCommunityIcons
+              name={focused ? 'wallet' : 'wallet-outline'}
+              size={22}
+              color={color as string}
+            />
           ),
         }}
       />
       <Tabs.Screen
         name="account"
         options={{
-          title: 'Hồ Sơ',
-          tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="account-outline" size={size ?? 22} color={color as string} />
+          title: 'Định danh',
+          tabBarIcon: ({ color, focused }) => (
+            <MaterialCommunityIcons
+              name={focused ? 'shield-account' : 'shield-account-outline'}
+              size={22}
+              color={color as string}
+            />
           ),
         }}
       />
-      {/* Ẩn mục Đấu giá khỏi thanh điều hướng dưới */}
+      {/* Ẩn tab đấu giá vì ứng dụng di động tập trung vào Xác thực, Ví & Bằng chứng */}
       <Tabs.Screen
         name="auctions"
-        options={{ href: null }}
-      />
-      {/* Ẩn mục SIMs cũ khỏi thanh điều hướng dưới */}
-      <Tabs.Screen
-        name="sims"
         options={{ href: null }}
       />
     </Tabs>

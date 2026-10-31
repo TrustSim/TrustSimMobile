@@ -207,7 +207,7 @@ export default function SimHandoverScreen() {
 
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
-      <Header title="Bằng Chứng Sang Tên SIM" showBack onBack={() => router.back()} />
+      <Header title="Quá Trình Chuyển Nhượng SIM" showBack onBack={() => router.back()} />
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Tiến trình trực quan */}
@@ -230,11 +230,16 @@ export default function SimHandoverScreen() {
           </View>
         </View>
 
-        {/* Hướng dẫn chụp ảnh bằng chứng (tiếng Việt rõ ràng, thân thiện) */}
+        {/* BƯỚC 1: Chụp ảnh bằng chứng sang tên tại nhà mạng */}
         <View style={styles.checklistCard}>
+          <View style={styles.stepPillRow}>
+            <View style={styles.stepBadge}>
+              <Text style={styles.stepBadgeText}>BƯỚC 1 · BẰNG CHỨNG SANG TÊN</Text>
+            </View>
+          </View>
           <View style={styles.checklistTitleRow}>
             <MaterialCommunityIcons name="camera-document" size={20} color={Colors.navy} />
-            <Text style={styles.checklistTitle}>HƯỚNG DẪN CHỤP ẢNH BẰNG CHỨNG</Text>
+            <Text style={styles.checklistTitle}>CHỤP BIÊN NHẬN SANG TÊN NHÀ MẠNG</Text>
           </View>
           <Text style={styles.checklistSubtitle}>
             Bên bán cần cung cấp hình ảnh rõ nét để làm căn cứ giải ngân tiền ký quỹ:
@@ -296,24 +301,62 @@ export default function SimHandoverScreen() {
           ))
         )}
 
-        {/* Nút xác nhận nhận SIM dành cho Bên Mua */}
-        <View style={styles.buyerActionArea}>
-          <TouchableOpacity
-            style={styles.confirmReceiptBtn}
-            onPress={() => setShowConfirmSheet(true)}
-            activeOpacity={0.85}
-            accessibilityRole="button"
-            accessibilityLabel="Xác nhận đã nhận SIM và giải ngân"
-          >
-            <MaterialCommunityIcons name="shield-check" size={20} color="#fff" />
-            <Text style={styles.confirmReceiptBtnText}>
-              Xác Nhận Đã Nhận SIM & Giải Ngân
+          {/* BƯỚC 2: Nút xác nhận nhận SIM dành cho Bên Mua */}
+          <View style={styles.buyerActionCard}>
+            <View style={styles.stepPillRow}>
+              <View style={[styles.stepBadge, { backgroundColor: Colors.successLight }]}>
+                <Text style={[styles.stepBadgeText, { color: Colors.success }]}>
+                  BƯỚC 2 · NGƯỜI MUA XÁC NHẬN & GIẢI NGÂN
+                </Text>
+              </View>
+            </View>
+            <Text style={styles.buyerCardTitle}>Hoàn tất kiểm tra SIM chính chủ</Text>
+            <Text style={styles.buyerCardDesc}>
+              Sau khi SIM đã kích hoạt sóng và đứng tên chính chủ của bạn, hãy xác nhận để giải ngân tiền ký quỹ cho Bên bán.
             </Text>
-          </TouchableOpacity>
-          <Text style={styles.buyerActionNote}>
-            * Khi bạn nhấn xác nhận, tiền ký quỹ sẽ được chuyển cho Bên Bán và giao dịch kết thúc an toàn.
-          </Text>
-        </View>
+            <TouchableOpacity
+              style={styles.confirmReceiptBtn}
+              onPress={() => setShowConfirmSheet(true)}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="Xác nhận đã nhận SIM và giải ngân"
+            >
+              <MaterialCommunityIcons name="shield-check" size={20} color="#fff" />
+              <Text style={styles.confirmReceiptBtnText}>
+                Xác Nhận Đã Nhận SIM & Giải Ngân
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* BƯỚC CON TRONG QUÁ TRÌNH CHUYỂN NHƯỢNG: Báo cáo sự cố / Chụp bằng chứng khiếu nại */}
+          <View style={styles.disputeSubStepCard}>
+            <View style={styles.stepPillRow}>
+              <View style={styles.disputeStepBadge}>
+                <MaterialCommunityIcons name="shield-alert-outline" size={13} color={Colors.danger} />
+                <Text style={styles.disputeStepBadgeText}>
+                  BƯỚC XỬ LÝ SỰ CỐ TRONG QUÁ TRÌNH CHUYỂN NHƯỢNG
+                </Text>
+              </View>
+            </View>
+            <Text style={styles.disputeSubStepTitle}>
+              Phát sinh sự cố khi sang tên SIM #{progress.simPhoneNumber || progress.tradeTransactionCode}?
+            </Text>
+            <Text style={styles.disputeSubStepDesc}>
+              Nếu bên bán chậm trễ ra điểm giao dịch, SIM bị từ chối sang tên do nợ cước/vướng cam kết hoặc không đúng mô tả, hãy chụp bằng chứng khiếu nại ngay tại bước này để hệ thống đóng băng khoản tiền ký quỹ ({escrowAmount.toLocaleString('vi-VN')} ₫).
+            </Text>
+            <TouchableOpacity
+              style={styles.disputeSubStepBtn}
+              onPress={() => router.push(`/dispute/${progress.tradeId || tradeId}`)}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Chụp bằng chứng khiếu nại cho giao dịch này"
+            >
+              <MaterialCommunityIcons name="camera-plus-outline" size={18} color={Colors.danger} />
+              <Text style={styles.disputeSubStepBtnText}>
+                Chụp Bằng Chứng Khiếu Nại & Khóa Giải Ngân
+              </Text>
+            </TouchableOpacity>
+          </View>
       </ScrollView>
 
       {/* Modal máy ảnh căn khung hình */}
@@ -554,124 +597,205 @@ const styles = StyleSheet.create({
     marginTop: 4,
     lineHeight: 17,
   },
-  buyerActionArea: {
-    marginTop: Spacing.md,
-    gap: Spacing.xs,
-  },
-  confirmReceiptBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: Colors.navy,
-    borderRadius: BorderRadius.md,
-    minHeight: 52,
-  },
-  confirmReceiptBtnText: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#fff',
-  },
-  buyerActionNote: {
-    fontSize: 11,
-    color: Colors.textMuted,
-    textAlign: 'center',
-    marginTop: 4,
-  },
-  cameraBackdrop: {
-    flex: 1,
-    backgroundColor: '#000',
-    justifyContent: 'space-between',
-  },
-  cameraHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.xl,
-    paddingTop: 50,
-  },
-  cameraTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#fff',
-  },
-  cameraGuideContainer: {
-    width: '88%',
-    height: '60%',
-    alignSelf: 'center',
-    borderRadius: 16,
-    position: 'relative',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  frameCornerTopLeft: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    width: 32,
-    height: 32,
-    borderTopWidth: 4,
-    borderLeftWidth: 4,
-    borderColor: Colors.blue,
-  },
-  frameCornerTopRight: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    width: 32,
-    height: 32,
-    borderTopWidth: 4,
-    borderRightWidth: 4,
-    borderColor: Colors.blue,
-  },
-  frameCornerBottomLeft: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    width: 32,
-    height: 32,
-    borderBottomWidth: 4,
-    borderLeftWidth: 4,
-    borderColor: Colors.blue,
-  },
-  frameCornerBottomRight: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 32,
-    height: 32,
-    borderBottomWidth: 4,
-    borderRightWidth: 4,
-    borderColor: Colors.blue,
-  },
-  frameCenterContent: {
-    alignItems: 'center',
-    paddingHorizontal: Spacing.xl,
-  },
-  frameGuideText: {
-    fontSize: 13,
-    color: '#fff',
-    textAlign: 'center',
-    marginTop: Spacing.md,
-    lineHeight: 18,
-  },
-  cameraControls: {
-    alignItems: 'center',
-    paddingBottom: 50,
-  },
-  shutterBtn: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
-    borderWidth: 4,
-    borderColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  shutterInner: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#fff',
-  },
-});
+    stepPillRow: {
+      flexDirection: 'row',
+      marginBottom: Spacing.xs + 2,
+    },
+    stepBadge: {
+      backgroundColor: Colors.surfaceAlt,
+      borderRadius: 4,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+    },
+    stepBadgeText: {
+      fontSize: 10,
+      fontWeight: '800',
+      color: Colors.blue,
+      letterSpacing: 0.5,
+    },
+    buyerActionCard: {
+      backgroundColor: Colors.surface,
+      borderRadius: BorderRadius.lg,
+      borderWidth: 1,
+      borderColor: Colors.border,
+      padding: Spacing.lg,
+      marginTop: Spacing.md,
+      ...Shadows.card,
+    },
+    buyerCardTitle: {
+      fontSize: 15,
+      fontWeight: '800',
+      color: Colors.navy,
+    },
+    buyerCardDesc: {
+      fontSize: 12,
+      color: Colors.textSecondary,
+      lineHeight: 18,
+      marginTop: 4,
+      marginBottom: Spacing.md,
+    },
+    confirmReceiptBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      backgroundColor: Colors.navy,
+      borderRadius: BorderRadius.md,
+      minHeight: 50,
+    },
+    confirmReceiptBtnText: {
+      fontSize: 14,
+      fontWeight: '800',
+      color: '#fff',
+    },
+      disputeSubStepCard: {
+        backgroundColor: Colors.surface,
+        borderRadius: BorderRadius.lg,
+        borderWidth: 1,
+        borderColor: '#FECACA',
+        borderLeftWidth: 3,
+        borderLeftColor: Colors.danger,
+        padding: Spacing.lg,
+        marginTop: Spacing.md,
+      },
+      disputeStepBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        backgroundColor: Colors.dangerLight,
+        borderRadius: 4,
+        paddingHorizontal: 8,
+        paddingVertical: 3,
+      },
+      disputeStepBadgeText: {
+        fontSize: 10,
+        fontWeight: '800',
+        color: Colors.danger,
+        letterSpacing: 0.4,
+      },
+      disputeSubStepTitle: {
+        fontSize: 14,
+        fontWeight: '800',
+        color: Colors.navy,
+        marginTop: 2,
+      },
+      disputeSubStepDesc: {
+        fontSize: 12,
+        color: Colors.textSecondary,
+        lineHeight: 18,
+        marginTop: 4,
+        marginBottom: Spacing.md,
+      },
+      disputeSubStepBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+        backgroundColor: Colors.surface,
+        borderWidth: 1,
+        borderColor: Colors.danger,
+        borderRadius: BorderRadius.md,
+        minHeight: 46,
+      },
+      disputeSubStepBtnText: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: Colors.danger,
+      },
+      cameraBackdrop: {
+        flex: 1,
+        backgroundColor: '#000',
+        justifyContent: 'space-between',
+      },
+      cameraHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: Spacing.xl,
+        paddingTop: 50,
+      },
+      cameraTitle: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: '#fff',
+      },
+      cameraGuideContainer: {
+        width: '88%',
+        height: '60%',
+        alignSelf: 'center',
+        borderRadius: 16,
+        position: 'relative',
+        justifyContent: 'center',
+        alignItems: 'center',
+      },
+      frameCornerTopLeft: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        width: 32,
+        height: 32,
+        borderTopWidth: 4,
+        borderLeftWidth: 4,
+        borderColor: Colors.blue,
+      },
+      frameCornerTopRight: {
+        position: 'absolute',
+        top: 0,
+        right: 0,
+        width: 32,
+        height: 32,
+        borderTopWidth: 4,
+        borderRightWidth: 4,
+        borderColor: Colors.blue,
+      },
+      frameCornerBottomLeft: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        width: 32,
+        height: 32,
+        borderBottomWidth: 4,
+        borderLeftWidth: 4,
+        borderColor: Colors.blue,
+      },
+      frameCornerBottomRight: {
+        position: 'absolute',
+        bottom: 0,
+        right: 0,
+        width: 32,
+        height: 32,
+        borderBottomWidth: 4,
+        borderRightWidth: 4,
+        borderColor: Colors.blue,
+      },
+      frameCenterContent: {
+        alignItems: 'center',
+        paddingHorizontal: Spacing.xl,
+      },
+      frameGuideText: {
+        fontSize: 13,
+        color: '#fff',
+        textAlign: 'center',
+        marginTop: Spacing.md,
+        lineHeight: 18,
+      },
+      cameraControls: {
+        alignItems: 'center',
+        paddingBottom: 50,
+      },
+      shutterBtn: {
+        width: 76,
+        height: 76,
+        borderRadius: 38,
+        borderWidth: 4,
+        borderColor: '#fff',
+        alignItems: 'center',
+        justifyContent: 'center',
+      },
+      shutterInner: {
+        width: 60,
+        height: 60,
+        borderRadius: 30,
+        backgroundColor: '#fff',
+      },
+    });

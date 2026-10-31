@@ -11,11 +11,12 @@ import {
 import { useFocusEffect, useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { BorderRadius, Colors, Shadows, Spacing } from '../../constants/theme';
+import { BorderRadius, Colors, Spacing } from '../../constants/theme';
 import { ContractTimeline } from '../../components/trust/ContractTimeline';
-import { MoneyField } from '../../components/trust/MoneyField';
+import { VerificationStatusBadge } from '../../components/trust/VerificationStatusBadge';
 import { useAuth } from '../../context/AuthContext';
 import { contractService } from '../../services/contractService';
+import { simService } from '../../services/simService';
 import type { TradeTransactionDto } from '../../types';
 
 export default function HomeScreen() {
@@ -23,12 +24,23 @@ export default function HomeScreen() {
   const { user, profile, wallet, refreshWallet, refreshProfile } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
   const [activeTrades, setActiveTrades] = useState<TradeTransactionDto[]>([]);
+  const [verifiedSimCount, setVerifiedSimCount] = useState<number>(0);
 
-  const fetchActiveTrades = useCallback(async () => {
+  const fetchDashboardData = useCallback(async () => {
     try {
-      const res = await contractService.getMyContracts({ pageIndex: 1, pageSize: 3 });
-      if (res.success && res.data?.items) {
-        setActiveTrades(res.data.items);
+      const [tradesRes, simsRes] = await Promise.allSettled([
+        contractService.getMyContracts({ pageIndex: 1, pageSize: 3 }),
+        simService.getMyOwnerships({ pageIndex: 1, pageSize: 20 }),
+      ]);
+
+      if (tradesRes.status === 'fulfilled' && tradesRes.value.success && tradesRes.value.data?.items) {
+        setActiveTrades(tradesRes.value.data.items);
+      } else {
+        setActiveTrades([]);
+      }
+
+      if (simsRes.status === 'fulfilled' && simsRes.value.success && simsRes.value.data?.items) {
+        setVerifiedSimCount(simsRes.value.data.totalCount ?? simsRes.value.data.items.length);
       }
     } catch {
       setActiveTrades([]);
@@ -38,7 +50,7 @@ export default function HomeScreen() {
   const onRefresh = async () => {
     if (!user) return;
     setRefreshing(true);
-    await Promise.allSettled([refreshWallet(), refreshProfile(), fetchActiveTrades()]);
+    await Promise.allSettled([refreshWallet(), refreshProfile(), fetchDashboardData()]);
     setRefreshing(false);
   };
 
@@ -47,32 +59,24 @@ export default function HomeScreen() {
       if (user) {
         refreshWallet();
         refreshProfile();
-        fetchActiveTrades();
+        fetchDashboardData();
       }
-    }, [user, refreshWallet, refreshProfile, fetchActiveTrades])
+    }, [user, refreshWallet, refreshProfile, fetchDashboardData])
   );
 
   const isVerified = profile?.verificationStatus === 'VERIFIED';
+  const isPendingKyc = profile?.verificationStatus === 'PENDING_VERIFICATION';
   const availableBal = wallet?.availableBalance ?? 0;
   const lockedBal = wallet?.lockedBalance ?? 0;
-  const totalBal = wallet?.totalBalance ?? (availableBal + lockedBal);
 
-  const handleKycPress = () => {
-    if (isVerified) {
-      router.push('/(tabs)/account');
-    } else {
-      router.push('/kyc');
-    }
-  };
-
-  const handleSimAction = () => {
+  const handleSimVerification = () => {
     if (!isVerified) {
       Alert.alert(
-        'Yêu cầu xác minh danh tính',
-        'Để liên kết và quản lý SIM, bạn cần hoàn thành xác thực căn cước công dân trước.',
+        'Cần xác thực CCCD trước',
+        'Để đối soát SIM chính chủ với nhà mạng, bạn cần hoàn tất xác thực căn cước công dân trước.',
         [
-          { text: 'Để sau', style: 'cancel' },
-          { text: 'Xác thực ngay', onPress: () => router.push('/kyc') },
+          { text: 'Đóng', style: 'cancel' },
+          { text: 'Xác thực CCCD', onPress: () => router.push('/kyc') },
         ]
       );
       return;
@@ -80,235 +84,381 @@ export default function HomeScreen() {
     router.push('/sims/verify');
   };
 
+  const handleRegisterSim = () => {
+    if (!isVerified) {
+      Alert.alert(
+        'Cần xác thực CCCD trước',
+        'Vui lòng xác thực Căn cước công dân trước khi khai báo SIM lên hệ thống.',
+        [
+          { text: 'Đóng', style: 'cancel' },
+          { text: 'Xác thực CCCD', onPress: () => router.push('/kyc') },
+        ]
+      );
+      return;
+    }
+    router.push('/sims/register');
+  };
+
+  const handleCaptureHandover = () => {
+    if (activeTrades.length > 0) {
+      router.push(`/handover/${activeTrades[0].id}`);
+    } else {
+      router.push('/(tabs)/contracts');
+    }
+  };
+
+  const quickActions = [
+    {
+      key: 'deposit',
+      label: 'Nạp tiền',
+      sub: 'VietQR 24/7',
+      icon: 'arrow-down-left' as const,
+      color: Colors.navy,
+      bgColor: Colors.surfaceAlt,
+      onPress: () => router.push('/deposit'),
+    },
+    {
+      key: 'withdraw',
+      label: 'Rút tiền',
+      sub: 'Về ngân hàng',
+      icon: 'arrow-up-right' as const,
+      color: Colors.navy,
+      bgColor: Colors.surfaceAlt,
+      onPress: () => router.push('/withdraw'),
+    },
+    {
+      key: 'transactions',
+      label: 'Sao kê ví',
+      sub: 'Lịch sử GD',
+      icon: 'receipt-text-outline' as const,
+      color: Colors.navy,
+      bgColor: Colors.surfaceAlt,
+      onPress: () => router.push('/transactions'),
+    },
+    {
+      key: 'verify-sim',
+      label: 'Xác thực SIM',
+      sub: 'Đối soát OTP',
+      icon: 'sim-outline' as const,
+      color: Colors.blue,
+      bgColor: 'rgba(22, 102, 197, 0.08)',
+      onPress: handleSimVerification,
+    },
+    {
+      key: 'register-sim',
+      label: 'Khai báo SIM',
+      sub: 'Thêm thuê bao',
+      icon: 'sim-alert-outline' as const,
+      color: Colors.navy,
+      bgColor: Colors.surfaceAlt,
+      onPress: handleRegisterSim,
+    },
+    {
+      key: 'kyc',
+      label: 'Định danh',
+      sub: isVerified ? 'Đã xác minh' : 'Chụp CCCD',
+      icon: 'card-account-details-outline' as const,
+      color: isVerified ? Colors.success : Colors.navy,
+      bgColor: isVerified ? Colors.successLight : Colors.surfaceAlt,
+      onPress: () => router.push(isVerified ? '/(tabs)/account' : '/kyc'),
+    },
+    {
+      key: 'nfc',
+      label: 'Quét NFC',
+      sub: 'CCCD gắn chip',
+      icon: 'nfc-variant' as const,
+      color: Colors.navy,
+      bgColor: Colors.surfaceAlt,
+      onPress: () => router.push('/kyc/nfc'),
+    },
+    {
+      key: 'handover',
+      label: 'Chuyển nhượng',
+      sub: 'Bằng chứng',
+      icon: 'camera-document' as const,
+      color: Colors.blue,
+      bgColor: 'rgba(22, 102, 197, 0.08)',
+      onPress: handleCaptureHandover,
+    },
+  ];
+
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
       <ScrollView
         contentContainerStyle={styles.scrollContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.blue} />}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.navy} />
+        }
         showsVerticalScrollIndicator={false}
       >
-        {/* Top Header: Trust ID Status Banner */}
-        <View style={styles.topHeader}>
-          <View style={styles.greetingBox}>
-            <Text style={styles.greetingSub}>Hệ thống chuyển nhượng SIM an toàn</Text>
-            <Text style={styles.greetingName}>
-              {profile?.fullName || user?.fullName || user?.userName || 'Tài khoản TrustSim'}
+        {/* Top Bar: Định danh & Trạng thái */}
+        <View style={styles.topBar}>
+          <View style={styles.userCol}>
+            <Text style={styles.appTag}>TRUSTSIM · BẢO CHỨNG GIAO DỊCH</Text>
+            <Text style={styles.userName} numberOfLines={1}>
+              {profile?.fullName || user?.fullName || user?.userName || 'Tài khoản'}
             </Text>
           </View>
-
           <TouchableOpacity
-            style={styles.trustBadgeBtn}
-            onPress={handleKycPress}
-            activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityLabel="Trạng thái xác thực danh tính"
+            onPress={() => router.push('/(tabs)/account')}
+            activeOpacity={0.75}
           >
-            <MaterialCommunityIcons
-              name={isVerified ? 'shield-check' : 'shield-alert-outline'}
-              size={18}
-              color={isVerified ? Colors.amber : Colors.warning}
+            <VerificationStatusBadge
+              status={isVerified ? 'verified' : isPendingKyc ? 'pending' : 'not_submitted'}
+              label={isVerified ? 'CCCD đã xác minh' : isPendingKyc ? 'Chờ duyệt CCCD' : 'Chưa xác thực'}
             />
-            <Text style={[styles.trustBadgeText, { color: isVerified ? Colors.amber : Colors.warning }]}>
-              {isVerified ? 'Đã xác minh' : 'Chưa xác thực'}
-            </Text>
           </TouchableOpacity>
         </View>
 
-        {/* Trạng thái định danh rút gọn */}
-        <View style={styles.trustStripCard}>
-          <View style={styles.trustStripHeader}>
-            <View style={styles.trustStripTitleRow}>
-              <MaterialCommunityIcons name="shield-lock-outline" size={16} color={Colors.navy} />
-              <Text style={styles.trustStripTitle}>Trạng thái định danh tài khoản</Text>
-            </View>
-            <TouchableOpacity onPress={() => router.push('/(tabs)/account')}>
-              <Text style={styles.linkText}>Chi tiết</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={styles.trustPillsRow}>
-            <View style={styles.trustPill}>
-              <MaterialCommunityIcons
-                name={isVerified ? 'check-circle' : 'circle-outline'}
-                size={14}
-                color={isVerified ? Colors.success : Colors.textMuted}
-              />
-              <Text style={styles.trustPillLabel}>Căn cước công dân</Text>
-            </View>
-            <View style={styles.trustPill}>
-              <MaterialCommunityIcons
-                name="cellphone-check"
-                size={14}
-                color={isVerified ? Colors.blue : Colors.textMuted}
-              />
-              <Text style={styles.trustPillLabel}>SIM chính chủ</Text>
-            </View>
-            <View style={styles.trustPill}>
-              <MaterialCommunityIcons
-                name="bank-check"
-                size={14}
-                color={Colors.blue}
-              />
-              <Text style={styles.trustPillLabel}>Tài khoản ví</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Số dư ví */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Tài Khoản & Số Dư</Text>
-          <TouchableOpacity onPress={() => router.push('/(tabs)/wallet')}>
-            <Text style={styles.linkText}>Ví & Lịch sử</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.ledgerCard}>
-          <View style={styles.ledgerMainRow}>
-            <View>
-              <Text style={styles.ledgerMainLabel}>SỐ DƯ KHẢ DỤNG</Text>
-              <Text style={styles.ledgerMainAmount}>
+        {/* Khối Sổ Cái Tài Chính (Nạp / Rút / Ký Quỹ) */}
+        <View style={styles.ledgerPanel}>
+          <View style={styles.ledgerTop}>
+            <View style={styles.balancePrimaryCol}>
+              <Text style={styles.fieldCaption}>SỐ DƯ KHẢ DỤNG</Text>
+              <Text style={styles.primaryBalance}>
                 {availableBal.toLocaleString('vi-VN')}{' '}
-                <Text style={styles.currency}>₫</Text>
+                <Text style={styles.currencyUnit}>₫</Text>
               </Text>
             </View>
             <TouchableOpacity
-              style={styles.depositCtaBtn}
+              style={styles.historyLinkBtn}
+              onPress={() => router.push('/transactions')}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.historyLinkText}>Sao kê</Text>
+              <MaterialCommunityIcons name="chevron-right" size={16} color={Colors.blue} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.escrowStrip}>
+            <View style={styles.escrowLabelRow}>
+              <View style={styles.escrowDot} />
+              <Text style={styles.escrowLabel}>Tiền đang ký quỹ giao dịch</Text>
+            </View>
+            <Text style={styles.escrowValue}>{lockedBal.toLocaleString('vi-VN')} ₫</Text>
+          </View>
+
+          <View style={styles.walletBtnRow}>
+            <TouchableOpacity
+              style={styles.depositBtn}
               onPress={() => router.push('/deposit')}
               activeOpacity={0.85}
               accessibilityRole="button"
               accessibilityLabel="Nạp tiền vào ví"
             >
-              <MaterialCommunityIcons name="plus" size={16} color="#fff" />
-              <Text style={styles.depositCtaText}>Nạp tiền</Text>
+              <MaterialCommunityIcons name="arrow-down-left" size={18} color="#fff" />
+              <Text style={styles.depositBtnText}>Nạp tiền</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.withdrawBtn}
+              onPress={() => router.push('/withdraw')}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Rút tiền về ngân hàng"
+            >
+              <MaterialCommunityIcons name="arrow-up-right" size={18} color={Colors.navy} />
+              <Text style={styles.withdrawBtnText}>Rút tiền</Text>
             </TouchableOpacity>
           </View>
-
-          <View style={styles.ledgerBreakdown}>
-            <View style={styles.ledgerSubCol}>
-              <Text style={styles.ledgerSubLabel}>Đang ký quỹ an toàn</Text>
-              <Text style={[styles.ledgerSubAmount, { color: Colors.warning }]}>
-                {lockedBal.toLocaleString('vi-VN')} ₫
-              </Text>
-            </View>
-            <View style={styles.ledgerDivider} />
-            <View style={styles.ledgerSubCol}>
-              <Text style={styles.ledgerSubLabel}>Tổng số dư</Text>
-              <Text style={styles.ledgerSubAmount}>
-                {totalBal.toLocaleString('vi-VN')} ₫
-              </Text>
-            </View>
-          </View>
         </View>
 
-        {/* Nút thao tác nhanh (Đã thay Đấu giá bằng Hợp đồng) */}
-        <View style={styles.actionGrid}>
-          <TouchableOpacity
-            style={styles.actionCard}
-            onPress={() => router.push('/deposit')}
-            activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityLabel="Nạp tiền"
-          >
-            <View style={[styles.actionIconBox, { backgroundColor: 'rgba(22, 102, 197, 0.08)' }]}>
-              <MaterialCommunityIcons name="arrow-down-bold-circle-outline" size={24} color={Colors.blue} />
-            </View>
-            <Text style={styles.actionCardTitle}>Nạp tiền</Text>
-            <Text style={styles.actionCardDesc}>VietQR tức thì</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.actionCard}
-            onPress={() => router.push('/withdraw')}
-            activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityLabel="Rút tiền"
-          >
-            <View style={[styles.actionIconBox, { backgroundColor: 'rgba(11, 31, 58, 0.08)' }]}>
-              <MaterialCommunityIcons name="arrow-up-bold-circle-outline" size={24} color={Colors.navy} />
-            </View>
-            <Text style={styles.actionCardTitle}>Rút tiền</Text>
-            <Text style={styles.actionCardDesc}>Về tài khoản ngân hàng</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.actionCard}
-            onPress={() => router.push('/(tabs)/contracts')}
-            activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityLabel="Hợp đồng chuyển nhượng"
-          >
-            <View style={[styles.actionIconBox, { backgroundColor: 'rgba(217, 146, 22, 0.1)' }]}>
-              <MaterialCommunityIcons name="file-document-outline" size={24} color={Colors.amber} />
-            </View>
-            <Text style={styles.actionCardTitle}>Hợp đồng</Text>
-            <Text style={styles.actionCardDesc}>Tiến trình chuyển nhượng</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.actionCard}
-            onPress={handleSimAction}
-            activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityLabel="Xác thực SIM chính chủ"
-          >
-            <View style={[styles.actionIconBox, { backgroundColor: 'rgba(22, 163, 74, 0.08)' }]}>
-              <MaterialCommunityIcons name="sim" size={24} color={Colors.success} />
-            </View>
-            <Text style={styles.actionCardTitle}>Xác thực SIM</Text>
-            <Text style={styles.actionCardDesc}>Chính chủ nhà mạng</Text>
+        {/* Cụm Nút Quick Action (Nạp tiền, Rút tiền, Sao kê, Xác thực SIM, Định danh...) */}
+        <View style={styles.sectionHeaderRow}>
+          <Text style={styles.sectionHeaderLabel}>THAO TÁC NHANH</Text>
+          <TouchableOpacity onPress={() => router.push('/(tabs)/wallet')}>
+            <Text style={styles.sectionActionLink}>Mở Ví tiền</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Hợp đồng đang diễn ra */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Hợp Đồng Đang Tiến Hành</Text>
+        <View style={styles.quickActionGrid}>
+          {quickActions.map((item) => (
+            <TouchableOpacity
+              key={item.key}
+              style={styles.quickActionCard}
+              onPress={item.onPress}
+              activeOpacity={0.78}
+              accessibilityRole="button"
+              accessibilityLabel={`${item.label} - ${item.sub}`}
+            >
+              <View style={[styles.quickActionIconBox, { backgroundColor: item.bgColor }]}>
+                <MaterialCommunityIcons name={item.icon} size={20} color={item.color} />
+              </View>
+              <Text style={styles.quickActionLabel} numberOfLines={1}>
+                {item.label}
+              </Text>
+              <Text style={styles.quickActionSub} numberOfLines={1}>
+                {item.sub}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Bảng Điều Khiển Nghiệp Vụ Xác Thực & Chuyển Nhượng */}
+        <View style={styles.sectionHeaderRow}>
+          <Text style={styles.sectionHeaderLabel}>NGHIỆP VỤ XÁC THỰC & CHUYỂN NHƯỢNG</Text>
+        </View>
+
+        <View style={styles.operationsPanel}>
+          {/* 1. Xác thực eKYC */}
+          <TouchableOpacity
+            style={styles.opRow}
+            onPress={() => router.push(isVerified ? '/(tabs)/account' : '/kyc')}
+            activeOpacity={0.75}
+          >
+            <View style={styles.opIconBox}>
+              <MaterialCommunityIcons
+                name="card-account-details-outline"
+                size={20}
+                color={Colors.navy}
+              />
+            </View>
+            <View style={styles.opBody}>
+              <Text style={styles.opTitle}>Xác thực danh tính (CCCD)</Text>
+              <Text style={styles.opMeta}>
+                {isVerified
+                  ? 'Đã khớp Căn cước & Khuôn mặt'
+                  : 'Chụp CCCD 2 mặt & khuôn mặt hoặc chạm NFC'}
+              </Text>
+            </View>
+            <View style={styles.opRight}>
+              <Text
+                style={[
+                  styles.opActionText,
+                  { color: isVerified ? Colors.success : Colors.blue },
+                ]}
+              >
+                {isVerified ? 'Đã xong' : 'Thực hiện'}
+              </Text>
+              <MaterialCommunityIcons name="chevron-right" size={18} color={Colors.textMuted} />
+            </View>
+          </TouchableOpacity>
+
+          {/* 2. Xác thực SIM */}
+          <TouchableOpacity
+            style={[styles.opRow, styles.opRowDivider]}
+            onPress={handleSimVerification}
+            activeOpacity={0.75}
+          >
+            <View style={styles.opIconBox}>
+              <MaterialCommunityIcons name="sim-outline" size={20} color={Colors.navy} />
+            </View>
+            <View style={styles.opBody}>
+              <Text style={styles.opTitle}>Xác thực SIM chính chủ</Text>
+              <Text style={styles.opMeta}>
+                {verifiedSimCount > 0
+                  ? `Đã xác thực ${verifiedSimCount} thuê bao chính chủ`
+                  : 'Nhận mã SMS OTP & đối soát chủ thuê bao'}
+              </Text>
+            </View>
+            <View style={styles.opRight}>
+              <Text style={styles.opActionText}>Đối soát</Text>
+              <MaterialCommunityIcons name="chevron-right" size={18} color={Colors.textMuted} />
+            </View>
+          </TouchableOpacity>
+
+          {/* 3. Quá trình chuyển nhượng & Bằng chứng sang tên */}
+          <TouchableOpacity
+            style={[styles.opRow, styles.opRowDivider]}
+            onPress={handleCaptureHandover}
+            activeOpacity={0.75}
+          >
+            <View style={styles.opIconBox}>
+              <MaterialCommunityIcons name="camera-document" size={20} color={Colors.navy} />
+            </View>
+            <View style={styles.opBody}>
+              <Text style={styles.opTitle}>Tiến trình chuyển nhượng & Bằng chứng</Text>
+              <Text style={styles.opMeta}>
+                Chụp biên nhận sang tên SIM hoặc báo cáo sự cố trong giao dịch
+              </Text>
+            </View>
+            <View style={styles.opRight}>
+              <Text style={styles.opActionText}>Thực hiện</Text>
+              <MaterialCommunityIcons name="chevron-right" size={18} color={Colors.textMuted} />
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        {/* Danh sách giao dịch đang cần bàn giao / ký / gửi bằng chứng */}
+        <View style={styles.sectionHeaderRow}>
+          <Text style={styles.sectionHeaderLabel}>HỢP ĐỒNG & CHUYỂN NHƯỢNG ĐANG XỬ LÝ</Text>
           <TouchableOpacity onPress={() => router.push('/(tabs)/contracts')}>
-            <Text style={styles.linkText}>Tất cả</Text>
+            <Text style={styles.sectionActionLink}>Tất cả</Text>
           </TouchableOpacity>
         </View>
 
         {activeTrades.length === 0 ? (
-          <View style={styles.emptyContractCard}>
-            <MaterialCommunityIcons name="file-check-outline" size={32} color={Colors.textMuted} />
-            <Text style={styles.emptyContractTitle}>Không có giao dịch chờ xử lý</Text>
-            <Text style={styles.emptyContractDesc}>
-              Các hợp đồng mua/bán SIM đang thực hiện sẽ hiển thị tiến trình xác thực tại đây.
+          <View style={styles.emptyPanel}>
+            <Text style={styles.emptyPanelTitle}>Chưa có giao dịch cần bàn giao</Text>
+            <Text style={styles.emptyPanelSub}>
+              Khi bạn trúng đấu giá hoặc có giao dịch bán SIM, hợp đồng và tiến trình chuyển nhượng sẽ hiển thị tại đây.
             </Text>
           </View>
         ) : (
-          activeTrades.map((trade) => (
-            <TouchableOpacity
-              key={trade.id}
-              style={styles.tradeCard}
-              onPress={() => router.push(`/contract/${trade.id}`)}
-              activeOpacity={0.85}
-              accessibilityRole="button"
-              accessibilityLabel={`Giao dịch ${trade.tradeTransactionCode}`}
-            >
-              <View style={styles.tradeHeader}>
-                <View>
-                  <Text style={styles.tradeCode}>#{trade.tradeTransactionCode}</Text>
-                  <Text style={styles.tradeSimNumber}>{trade.simPhoneNumber || 'SIM Chuyển nhượng'}</Text>
+          <View style={styles.tradesPanel}>
+            {activeTrades.map((trade, index) => (
+              <View
+                key={trade.id}
+                style={[styles.tradeItem, index > 0 && styles.opRowDivider]}
+              >
+                <TouchableOpacity
+                  onPress={() => router.push(`/handover/${trade.id}`)}
+                  activeOpacity={0.75}
+                >
+                  <View style={styles.tradeTopRow}>
+                    <View>
+                      <Text style={styles.tradeRefCode}>#{trade.tradeTransactionCode}</Text>
+                      <Text style={styles.tradePhoneText}>
+                        {trade.simPhoneNumber || 'SIM Chuyển nhượng'}
+                      </Text>
+                    </View>
+                    <View style={styles.tradeAmountCol}>
+                      <Text style={styles.tradeAmountVal}>
+                        {(trade.escrowAmount ?? 0).toLocaleString('vi-VN')} ₫
+                      </Text>
+                      <Text style={styles.tradeAmountCap}>Ký quỹ</Text>
+                    </View>
+                  </View>
+
+                  <ContractTimeline
+                    status={trade.status}
+                    compact
+                    style={{ marginTop: Spacing.xs, marginBottom: Spacing.sm }}
+                  />
+                </TouchableOpacity>
+
+                {/* Nút thao tác cho từng giao dịch chuyển nhượng */}
+                <View style={styles.tradeQuickActions}>
+                  <TouchableOpacity
+                    style={styles.tradeSecondaryBtn}
+                    onPress={() => router.push(`/contract/${trade.id}`)}
+                    activeOpacity={0.75}
+                  >
+                    <MaterialCommunityIcons
+                      name="file-sign"
+                      size={15}
+                      color={Colors.navy}
+                    />
+                    <Text style={styles.tradeSecondaryBtnText}>Hợp đồng</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.tradePrimaryBtn}
+                    onPress={() => router.push(`/handover/${trade.id}`)}
+                    activeOpacity={0.8}
+                  >
+                    <MaterialCommunityIcons
+                      name="camera-document"
+                      size={15}
+                      color="#fff"
+                    />
+                    <Text style={styles.tradePrimaryBtnText}>Quá trình chuyển nhượng</Text>
+                  </TouchableOpacity>
                 </View>
-                <Text style={styles.tradeAmount}>
-                  {(trade.escrowAmount ?? 0).toLocaleString('vi-VN')} ₫
-                </Text>
               </View>
-
-              <ContractTimeline status={trade.status} compact style={{ marginTop: Spacing.xs }} />
-            </TouchableOpacity>
-          ))
-        )}
-
-        {/* Bảo đảm ký quỹ an toàn */}
-        <View style={styles.guaranteeBox}>
-          <MaterialCommunityIcons name="shield-check" size={20} color={Colors.blue} />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.guaranteeTitle}>Quy chế ký quỹ & bảo vệ thanh toán</Text>
-            <Text style={styles.guaranteeDesc}>
-              Số tiền đặt cọc được giữ an toàn trong tài khoản ký quỹ. Người bán chỉ nhận được tiền khi SIM đã hoàn tất thủ tục sang tên chính chủ và có biên nhận xác nhận hợp lệ.
-            </Text>
+            ))}
           </View>
-        </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -323,285 +473,358 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     paddingBottom: Spacing.xxxl,
   },
-  topHeader: {
+  topBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.lg,
+    gap: Spacing.sm,
+  },
+  userCol: {
+    flex: 1,
+  },
+  appTag: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+    letterSpacing: 0.8,
+    marginBottom: 2,
+  },
+  userName: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: Colors.navy,
+  },
+  ledgerPanel: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.lg,
+    marginBottom: Spacing.xl,
+  },
+  ledgerTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     marginBottom: Spacing.md,
   },
-  greetingBox: {
+  balancePrimaryCol: {
     flex: 1,
-    marginRight: Spacing.sm,
   },
-  greetingSub: {
-    fontSize: 12,
+  fieldCaption: {
+    fontSize: 11,
+    fontWeight: '700',
     color: Colors.textSecondary,
-    marginBottom: 2,
+    letterSpacing: 0.6,
   },
-  greetingName: {
-    fontSize: 20,
+  primaryBalance: {
+    fontSize: 30,
     fontWeight: '800',
     color: Colors.navy,
+    fontVariant: ['tabular-nums'],
+    marginTop: 4,
+    letterSpacing: -0.5,
   },
-  trustBadgeBtn: {
+  currencyUnit: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+  },
+  historyLinkBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 6,
-    borderRadius: BorderRadius.md,
-    ...Shadows.card,
+    paddingVertical: 4,
+    paddingLeft: 8,
   },
-  trustBadgeText: {
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  trustStripCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    padding: Spacing.md,
-    marginBottom: Spacing.lg,
-    ...Shadows.card,
-  },
-  trustStripHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: Spacing.sm,
-  },
-  trustStripTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  trustStripTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: Colors.navy,
-  },
-  linkText: {
+  historyLinkText: {
     fontSize: 13,
     fontWeight: '600',
     color: Colors.blue,
   },
-  trustPillsRow: {
+  escrowStrip: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: Colors.surfaceAlt,
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 10,
+    marginBottom: Spacing.md,
+  },
+  escrowLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  escrowDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: Colors.amber,
+  },
+  escrowLabel: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    fontWeight: '500',
+  },
+  escrowValue: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.navy,
+    fontVariant: ['tabular-nums'],
+  },
+  walletBtnRow: {
     flexDirection: 'row',
     gap: Spacing.sm,
   },
-  trustPill: {
+  depositBtn: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    backgroundColor: Colors.surfaceAlt,
-    paddingHorizontal: Spacing.xs + 2,
-    paddingVertical: 6,
-    borderRadius: BorderRadius.xs,
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: Colors.navy,
+    borderRadius: BorderRadius.sm,
+    minHeight: 46,
   },
-  trustPillLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: Colors.textSecondary,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: Spacing.sm,
-    marginTop: Spacing.xs,
-  },
-  sectionTitle: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: Colors.navy,
-  },
-  ledgerCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    padding: Spacing.lg,
-    marginBottom: Spacing.lg,
-    ...Shadows.card,
-  },
-  ledgerMainRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: Spacing.md,
-  },
-  ledgerMainLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: Colors.textSecondary,
-    letterSpacing: 0.5,
-  },
-  ledgerMainAmount: {
-    fontSize: 26,
-    fontWeight: '800',
-    color: Colors.navy,
-    fontVariant: ['tabular-nums'],
-    marginTop: 2,
-  },
-  currency: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.textSecondary,
-  },
-  depositCtaBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: Colors.blue,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.md,
-    minHeight: 40,
-  },
-  depositCtaText: {
-    fontSize: 13,
+  depositBtnText: {
+    fontSize: 14,
     fontWeight: '700',
     color: '#fff',
   },
-  ledgerBreakdown: {
-    flexDirection: 'row',
-    backgroundColor: Colors.surfaceAlt,
-    borderRadius: BorderRadius.sm,
-    padding: Spacing.md,
-  },
-  ledgerSubCol: {
+  withdrawBtn: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    minHeight: 46,
   },
-  ledgerDivider: {
-    width: 1,
-    backgroundColor: Colors.border,
-    marginHorizontal: Spacing.sm,
-  },
-  ledgerSubLabel: {
-    fontSize: 11,
-    color: Colors.textSecondary,
-  },
-  ledgerSubAmount: {
+  withdrawBtnText: {
     fontSize: 14,
     fontWeight: '700',
     color: Colors.navy,
-    fontVariant: ['tabular-nums'],
-    marginTop: 2,
   },
-  actionGrid: {
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.sm,
+  },
+  sectionHeaderLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+    letterSpacing: 0.7,
+  },
+  sectionActionLink: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.blue,
+  },
+  quickActionGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    gap: Spacing.sm,
-    marginBottom: Spacing.lg,
+    gap: Spacing.xs + 2,
+    marginBottom: Spacing.xl,
   },
-  actionCard: {
-    width: '48%',
+  quickActionCard: {
+    width: '23%',
+    flexGrow: 1,
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingVertical: 11,
+    paddingHorizontal: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quickActionIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: BorderRadius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 6,
+  },
+  quickActionLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.navy,
+    textAlign: 'center',
+  },
+  quickActionSub: {
+    fontSize: 10,
+    color: Colors.textMuted,
+    textAlign: 'center',
+    marginTop: 1,
+  },
+  operationsPanel: {
     backgroundColor: Colors.surface,
     borderRadius: BorderRadius.md,
     borderWidth: 1,
     borderColor: Colors.border,
-    padding: Spacing.md,
-    ...Shadows.card,
+    overflow: 'hidden',
+    marginBottom: Spacing.xl,
   },
-  actionIconBox: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+  opRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 14,
+    gap: Spacing.md,
+    minHeight: 64,
+  },
+  opRowDivider: {
+    borderTopWidth: 1,
+    borderTopColor: Colors.borderLight,
+  },
+  opIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 8,
+    backgroundColor: Colors.surfaceAlt,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: Spacing.sm,
   },
-  actionCardTitle: {
+  opBody: {
+    flex: 1,
+  },
+  opTitle: {
     fontSize: 14,
     fontWeight: '700',
     color: Colors.navy,
   },
-  actionCardDesc: {
+  opMeta: {
     fontSize: 12,
     color: Colors.textSecondary,
     marginTop: 2,
   },
-  emptyContractCard: {
+  opRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  opActionText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.blue,
+  },
+  emptyPanel: {
     backgroundColor: Colors.surface,
     borderRadius: BorderRadius.md,
     borderWidth: 1,
     borderColor: Colors.border,
     padding: Spacing.xl,
-    alignItems: 'center',
-    marginBottom: Spacing.lg,
   },
-  emptyContractTitle: {
+  emptyPanelTitle: {
     fontSize: 14,
     fontWeight: '700',
     color: Colors.navy,
-    marginTop: Spacing.sm,
   },
-  emptyContractDesc: {
+  emptyPanelSub: {
     fontSize: 12,
     color: Colors.textSecondary,
-    textAlign: 'center',
+    lineHeight: 18,
     marginTop: 4,
-    lineHeight: 17,
   },
-  tradeCard: {
+  tradesPanel: {
     backgroundColor: Colors.surface,
     borderRadius: BorderRadius.md,
     borderWidth: 1,
     borderColor: Colors.border,
-    padding: Spacing.md,
-    marginBottom: Spacing.sm,
-    ...Shadows.card,
+    overflow: 'hidden',
   },
-  tradeHeader: {
+  tradeItem: {
+    padding: Spacing.md,
+  },
+  tradeTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: Spacing.xs,
   },
-  tradeCode: {
-    fontSize: 12,
-    color: Colors.blue,
+  tradeRefCode: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.textSecondary,
     fontFamily: 'monospace',
-    fontWeight: '700',
   },
-  tradeSimNumber: {
-    fontSize: 15,
-    fontWeight: '700',
+  tradePhoneText: {
+    fontSize: 16,
+    fontWeight: '800',
     color: Colors.navy,
     marginTop: 2,
+    fontVariant: ['tabular-nums'],
   },
-  tradeAmount: {
+  tradeAmountCol: {
+    alignItems: 'flex-end',
+  },
+  tradeAmountVal: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '800',
     color: Colors.navy,
     fontVariant: ['tabular-nums'],
   },
-  guaranteeBox: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: Spacing.sm,
-    backgroundColor: 'rgba(22, 102, 197, 0.05)',
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    borderColor: 'rgba(22, 102, 197, 0.15)',
-    padding: Spacing.md,
-    marginTop: Spacing.sm,
+  tradeAmountCap: {
+    fontSize: 11,
+    color: Colors.textMuted,
+    marginTop: 1,
   },
-  guaranteeTitle: {
-    fontSize: 13,
+  tradeQuickActions: {
+    flexDirection: 'row',
+    gap: Spacing.xs,
+    marginTop: Spacing.xs,
+  },
+  tradeSecondaryBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    backgroundColor: Colors.surfaceAlt,
+    borderRadius: BorderRadius.xs,
+    minHeight: 38,
+    paddingHorizontal: Spacing.sm,
+  },
+  tradeSecondaryBtnText: {
+    fontSize: 12,
     fontWeight: '700',
     color: Colors.navy,
   },
-  guaranteeDesc: {
+  tradePrimaryBtn: {
+    flex: 1.3,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    backgroundColor: Colors.blue,
+    borderRadius: BorderRadius.xs,
+    minHeight: 38,
+    paddingHorizontal: Spacing.sm,
+  },
+  tradePrimaryBtnText: {
     fontSize: 12,
-    color: Colors.textSecondary,
-    lineHeight: 17,
-    marginTop: 2,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  tradeDisputeBtn: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: BorderRadius.xs,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingHorizontal: 10,
+    minHeight: 38,
+  },
+  tradeDisputeBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.danger,
   },
 });

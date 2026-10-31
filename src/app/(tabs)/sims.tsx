@@ -1,8 +1,7 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  FlatList,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -11,16 +10,20 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Badge } from '../../components/Badge';
-import { Button } from '../../components/Button';
-import { Card } from '../../components/Card';
 import { BorderRadius, Colors, Spacing } from '../../constants/theme';
+import { VerificationStatusBadge } from '../../components/trust/VerificationStatusBadge';
 import { useAuth } from '../../context/AuthContext';
 import { simService } from '../../services/simService';
 import { SimOwnershipDto, SimOwnershipSortBy, SortOrder } from '../../types';
+
+const STATUS_FILTERS = [
+  { key: undefined, label: 'Tất cả' },
+  { key: 'ACTIVE', label: 'Đang sở hữu' },
+  { key: 'UNVERIFIED', label: 'Chờ đối soát' },
+] as const;
 
 export default function MySimsScreen() {
   const router = useRouter();
@@ -31,55 +34,53 @@ export default function MySimsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<string | undefined>(undefined);
-  const [sortOrder, setSortOrder] = useState<SortOrder>(SortOrder.Desc);
-  const [pageIndex, setPageIndex] = useState(1);
-  const [hasNextPage, setHasNextPage] = useState(false);
 
-  const fetchSims = useCallback(async (isRefresh = false, page = 1) => {
-    if (isRefresh) setRefreshing(true);
-    else setLoading(true);
+  const fetchSims = useCallback(
+    async (isRefresh = false) => {
+      if (isRefresh) setRefreshing(true);
+      else setLoading(true);
 
-    try {
-      const res = await simService.getMyOwnerships({
-        keyword: searchTerm.trim() || undefined,
-        status: (selectedStatus as any) || undefined,
-        sortBy: SimOwnershipSortBy.CreatedDate,
-        sortOrder,
-        pageIndex: page,
-        pageSize: 10,
-      });
+      try {
+        const res = await simService.getMyOwnerships({
+          keyword: searchTerm.trim() || undefined,
+          status: (selectedStatus as any) || undefined,
+          sortBy: SimOwnershipSortBy.CreatedDate,
+          sortOrder: SortOrder.Desc,
+          pageIndex: 1,
+          pageSize: 30,
+        });
 
-      if (res.success && res.data?.items) {
-        if (page === 1) {
+        if (res.success && res.data?.items) {
           setSims(res.data.items);
         } else {
-          setSims((prev) => [...prev, ...res.data.items]);
+          setSims([]);
         }
-        setHasNextPage(res.data.hasNextPage);
-      } else {
-        if (page === 1) setSims([]);
+      } catch {
+        setSims([]);
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
       }
-    } catch {
-      if (page === 1) setSims([]);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [searchTerm, selectedStatus, sortOrder]);
+    },
+    [searchTerm, selectedStatus]
+  );
 
-  useEffect(() => {
-    fetchSims(true, 1);
-  }, [fetchSims]);
+  useFocusEffect(
+    useCallback(() => {
+      fetchSims(false);
+    }, [fetchSims])
+  );
+
+  const isKycVerified = profile?.verificationStatus === 'VERIFIED';
 
   const handleVerifyNewSim = () => {
-    // Check eKYC pre-condition
-    if (profile?.verificationStatus !== 'VERIFIED') {
+    if (!isKycVerified) {
       Alert.alert(
-        'Yêu cầu xác minh danh tính',
-        'Để thêm số điện thoại chính chủ, bạn cần hoàn thành xác minh căn cước công dân trước.',
+        'Yêu cầu xác thực CCCD trước',
+        'Để đối soát thông tin chủ thuê bao với nhà mạng, bạn cần hoàn tất xác thực Căn cước công dân trước.',
         [
-          { text: 'Để sau', style: 'cancel' },
-          { text: 'Xác minh ngay', onPress: () => router.push('/kyc') },
+          { text: 'Đóng', style: 'cancel' },
+          { text: 'Xác thực CCCD', onPress: () => router.push('/kyc') },
         ]
       );
       return;
@@ -87,192 +88,218 @@ export default function MySimsScreen() {
     router.push('/sims/verify');
   };
 
-  const formatVnd = (price: number) => {
-    return price.toLocaleString('vi-VN') + ' đ';
+  const handleRegisterSim = () => {
+    if (!isKycVerified) {
+      Alert.alert(
+        'Yêu cầu xác thực CCCD trước',
+        'Vui lòng xác thực Căn cước công dân trước khi khai báo SIM lên hệ thống.',
+        [
+          { text: 'Đóng', style: 'cancel' },
+          { text: 'Xác thực CCCD', onPress: () => router.push('/kyc') },
+        ]
+      );
+      return;
+    }
+    router.push('/sims/register');
   };
 
-  const renderSimCard = ({ item }: { item: SimOwnershipDto }) => {
-    return (
-      <Card style={styles.simCard}>
-        <View style={styles.simCardHeader}>
-          <View>
-            <View style={styles.phoneRow}>
-              <Ionicons name="phone-portrait" size={20} color={Colors.primary} />
-              <Text style={styles.simNumber}>{item.phoneNumber}</Text>
-            </View>
-            <Text style={styles.simRhythm}>
-              {item.formatRhythmName || 'Số đẹp'} • Giá: {formatVnd(item.price)}
-            </Text>
-          </View>
-
-          <View style={styles.carrierTag}>
-            <Text style={styles.carrierText}>{item.carrierName}</Text>
-          </View>
-        </View>
-
-        <View style={styles.simCardDivider} />
-
-        <View style={styles.simCardFooter}>
-          <View style={styles.statusRow}>
-            <Badge status={item.simStatus} label={item.simStatus} />
-            <View style={styles.verifiedTag}>
-              <Ionicons name="shield-checkmark" size={14} color={Colors.success} />
-              <Text style={styles.verifiedTagText}>Chính chủ</Text>
-            </View>
-          </View>
-
-          <View style={styles.cardActions}>
-            <Button
-              title="Niêm yết bán"
-              variant="outline"
-              size="sm"
-              onPress={() =>
-                Alert.alert(
-                  'Niêm yết SIM',
-                  `Tạo yêu cầu niêm yết SIM ${item.phoneNumber} lên sàn TrustSim.`
-                )
-              }
-              style={{ marginRight: Spacing.xs }}
-            />
-            <Button
-              title="Tạo đấu giá"
-              variant="secondary"
-              size="sm"
-              onPress={() =>
-                Alert.alert(
-                  'Phòng đấu giá',
-                  `Tạo phòng đấu giá công khai cho SIM ${item.phoneNumber}.`
-                )
-              }
-            />
-          </View>
-        </View>
-      </Card>
-    );
-  };
+  const verifiedCount = sims.filter(
+    (s) => s.verificationStatus === 'VERIFIED' || s.ownershipStatus === 'ACTIVE'
+  ).length;
 
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
-      {/* Top Header */}
-      <View style={styles.topBar}>
-        <View>
-          <Text style={styles.pageTitle}>Kho SIM Của Tôi</Text>
-          <Text style={styles.simCountSub}>
-            Đang quản lý {sims.length} SIM
-          </Text>
-        </View>
-
-        <Button
-          title="+ Thêm SIM"
-          variant="primary"
-          size="sm"
-          icon={<Ionicons name="add" size={16} color={Colors.textInverse} />}
-          onPress={handleVerifyNewSim}
-        />
-      </View>
-
-      {/* Search & Sort Filters */}
-      <View style={styles.filterRow}>
-        <View style={styles.searchBox}>
-          <Ionicons name="search" size={18} color={Colors.textMuted} />
-          <TextInput
-            placeholder="Tìm số SIM, nhà mạng..."
-            placeholderTextColor={Colors.textMuted}
-            value={searchTerm}
-            onChangeText={setSearchTerm}
-            style={styles.searchInput}
-          />
-          {searchTerm.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchTerm('')}>
-              <Ionicons name="close-circle" size={18} color={Colors.textMuted} />
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* Sort Toggle */}
-        <TouchableOpacity
-          style={styles.sortButton}
-          onPress={() => {
-            setSortOrder((prev) =>
-              prev === SortOrder.Desc ? SortOrder.Asc : SortOrder.Desc
-            );
-          }}
-        >
-          <Ionicons name="swap-vertical" size={16} color={Colors.primary} />
-          <Text style={styles.sortText}>
-            {sortOrder === SortOrder.Desc ? 'Mới nhất' : 'Cũ nhất'}
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Status Filter Chips */}
-      <View>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.statusChipsRow}
-        >
-          {[
-            { key: undefined, label: 'Tất cả' },
-            { key: 'ACTIVE', label: 'Đang hoạt động' },
-            { key: 'TRANSFERRED', label: 'Đã chuyển nhượng' },
-            { key: 'REVOKED', label: 'Đã thu hồi' },
-          ].map((tab) => {
-            const isActive = selectedStatus === tab.key;
-            return (
-              <TouchableOpacity
-                key={tab.label}
-                style={[styles.statusChip, isActive && styles.statusChipActive]}
-                onPress={() => {
-                  setSelectedStatus(tab.key);
-                  setPageIndex(1);
-                }}
-              >
-                <Text style={[styles.statusChipText, isActive && styles.statusChipTextActive]}>
-                  {tab.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      </View>
-
-      {/* SIM List */}
-      <FlatList
-        data={sims}
-        keyExtractor={(item) => item.id}
-        renderItem={renderSimCard}
-        contentContainerStyle={styles.listContent}
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={() => fetchSims(true, 1)} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => fetchSims(true)}
+            tintColor={Colors.navy}
+          />
         }
-        onEndReached={() => {
-          if (hasNextPage && !loading) {
-            const nextP = pageIndex + 1;
-            setPageIndex(nextP);
-            fetchSims(false, nextP);
-          }
-        }}
-        onEndReachedThreshold={0.4}
-        ListFooterComponent={
-          loading ? (
-            <View style={styles.loadingFooter}>
-              <ActivityIndicator size="small" color={Colors.primary} />
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Top Header */}
+        <View style={styles.topHeader}>
+          <View>
+            <Text style={styles.headerCaption}>ĐỐI SOÁT THUÊ BAO NHÀ MẠNG</Text>
+            <Text style={styles.pageTitle}>Xác Thực SIM</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.registerLinkBtn}
+            onPress={handleRegisterSim}
+            activeOpacity={0.75}
+          >
+            <MaterialCommunityIcons name="plus" size={16} color={Colors.navy} />
+            <Text style={styles.registerLinkText}>Khai báo SIM</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Bảng tóm tắt đối soát SIM & Nút xác thực OTP */}
+        <View style={styles.summaryPanel}>
+          <View style={styles.metricsRow}>
+            <View style={styles.metricCol}>
+              <Text style={styles.metricLabel}>TỔNG THUÊ BAO</Text>
+              <Text style={styles.metricVal}>{sims.length}</Text>
             </View>
-          ) : undefined
-        }
-        ListEmptyComponent={
-          !loading ? (
-            <View style={styles.emptyContainer}>
-              <Ionicons name="phone-portrait-outline" size={60} color={Colors.border} />
-              <Text style={styles.emptyTitle}>Chưa có SIM nào</Text>
-              <Text style={styles.emptySubtitle}>
-                Bấm nút &quot;+ Thêm SIM&quot; phía trên để liên kết số điện thoại chính chủ của bạn.
+            <View style={styles.metricDivider} />
+            <View style={styles.metricCol}>
+              <Text style={styles.metricLabel}>KHỚP CHÍNH CHỦ</Text>
+              <Text style={[styles.metricVal, { color: Colors.success }]}>{verifiedCount}</Text>
+            </View>
+            <View style={styles.metricDivider} />
+            <View style={styles.metricCol}>
+              <Text style={styles.metricLabel}>HỒ SƠ CCCD GỐC</Text>
+              <Text
+                style={[
+                  styles.metricStatusText,
+                  { color: isKycVerified ? Colors.success : Colors.warning },
+                ]}
+              >
+                {isKycVerified ? 'Đã xác minh' : 'Chưa xác thực'}
               </Text>
             </View>
-          ) : undefined
-        }
-      />
+          </View>
+
+          <TouchableOpacity
+            style={styles.verifySimCta}
+            onPress={handleVerifyNewSim}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Xác thực SIM chính chủ bằng mã OTP"
+          >
+            <MaterialCommunityIcons name="cellphone-check" size={18} color="#fff" />
+            <Text style={styles.verifySimCtaText}>Xác Thực SIM Chính Chủ Qua SMS OTP</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Thanh tìm kiếm & Bộ lọc */}
+        <View style={styles.filterSection}>
+          <View style={styles.searchBar}>
+            <MaterialCommunityIcons name="magnify" size={18} color={Colors.textMuted} />
+            <TextInput
+              style={styles.searchInput}
+              value={searchTerm}
+              onChangeText={setSearchTerm}
+              onSubmitEditing={() => fetchSims(false)}
+              placeholder="Tìm theo số điện thoại..."
+              placeholderTextColor={Colors.textMuted}
+              keyboardType="phone-pad"
+              returnKeyType="search"
+            />
+            {searchTerm.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchTerm('')}>
+                <MaterialCommunityIcons name="close-circle" size={16} color={Colors.textMuted} />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          <View style={styles.tabsRow}>
+            {STATUS_FILTERS.map((f) => {
+              const active = selectedStatus === f.key;
+              return (
+                <TouchableOpacity
+                  key={f.label}
+                  style={[styles.filterTab, active && styles.filterTabActive]}
+                  onPress={() => setSelectedStatus(f.key)}
+                  activeOpacity={0.75}
+                >
+                  <Text style={[styles.filterTabText, active && styles.filterTabTextActive]}>
+                    {f.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+
+        {/* Danh sách SIM đã liên kết */}
+        <Text style={styles.listHeaderLabel}>DANH SÁCH THUÊ BAO ({sims.length})</Text>
+
+        {loading && sims.length === 0 ? (
+          <View style={styles.emptyPanel}>
+            <ActivityIndicator size="small" color={Colors.navy} />
+            <Text style={styles.emptySub}>Đang tải danh sách thuê bao...</Text>
+          </View>
+        ) : sims.length === 0 ? (
+          <View style={styles.emptyPanel}>
+            <MaterialCommunityIcons name="sim-outline" size={32} color={Colors.textMuted} />
+            <Text style={styles.emptyTitle}>Chưa có SIM nào được xác thực</Text>
+            <Text style={styles.emptySub}>
+              Nhấn nút &ldquo;Xác Thực SIM Chính Chủ Qua SMS OTP&rdquo; phía trên để nhận mã xác nhận và đối chiếu thông tin thuê bao với CCCD của bạn.
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.registryPanel}>
+            {sims.map((item, index) => {
+              const isSimVerified =
+                item.verificationStatus === 'VERIFIED' || item.ownershipStatus === 'ACTIVE';
+              const verifiedDate = item.verifiedAt || item.createdDate;
+              const formattedDate = verifiedDate
+                ? new Date(verifiedDate).toLocaleDateString('vi-VN', {
+                  day: '2-digit',
+                  month: '2-digit',
+                  year: 'numeric',
+                })
+                : '';
+
+              return (
+                <View
+                  key={item.id}
+                  style={[styles.simRow, index > 0 && styles.simRowDivider]}
+                >
+                  <View style={styles.simTopLine}>
+                    <View>
+                      <View style={styles.phoneBadgeRow}>
+                        <Text style={styles.phoneNumberText}>{item.phoneNumber}</Text>
+                        <View style={styles.carrierPill}>
+                          <Text style={styles.carrierPillText}>
+                            {item.carrierName || 'Nhà mạng'}
+                          </Text>
+                        </View>
+                      </View>
+                      <Text style={styles.simMetaText}>
+                        {item.formatRhythmName || 'Thuê bao di động'}
+                        {formattedDate ? ` · Cập nhật ${formattedDate}` : ''}
+                      </Text>
+                    </View>
+
+                    <VerificationStatusBadge
+                      status={isSimVerified ? 'verified' : 'checking'}
+                      label={isSimVerified ? 'Khớp chủ thuê bao' : 'Chờ đối soát'}
+                      size="sm"
+                    />
+                  </View>
+
+                  <View style={styles.simBottomLine}>
+                    <Text style={styles.priceValueText}>
+                      Định giá: {(item.price ?? 0).toLocaleString('vi-VN')} ₫
+                    </Text>
+
+                    {!isSimVerified ? (
+                      <TouchableOpacity
+                        style={styles.reverifyBtn}
+                        onPress={() => router.push('/sims/verify')}
+                        activeOpacity={0.75}
+                      >
+                        <Text style={styles.reverifyBtnText}>Xác thực OTP</Text>
+                        <MaterialCommunityIcons
+                          name="arrow-right"
+                          size={14}
+                          color={Colors.blue}
+                        />
+                      </TouchableOpacity>
+                    ) : (
+                      <Text style={styles.readyStatusText}>Đủ điều kiện giao dịch</Text>
+                    )}
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        )}
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -282,181 +309,248 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  topBar: {
+  scrollContent: {
+    padding: Spacing.lg,
+    paddingBottom: Spacing.xxxl,
+  },
+  topHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.md,
-    paddingBottom: Spacing.sm,
+    alignItems: 'flex-end',
+    marginBottom: Spacing.lg,
+  },
+  headerCaption: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+    letterSpacing: 0.8,
+    marginBottom: 2,
   },
   pageTitle: {
     fontSize: 22,
     fontWeight: '800',
-    color: Colors.text,
+    color: Colors.navy,
   },
-  simCountSub: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    marginTop: 2,
-  },
-  filterRow: {
+  registerLinkBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.xs,
-    gap: Spacing.xs,
+    gap: 4,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 8,
+    minHeight: 38,
   },
-  searchBox: {
+  registerLinkText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.navy,
+  },
+  summaryPanel: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.lg,
+    marginBottom: Spacing.lg,
+  },
+  metricsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Spacing.lg,
+  },
+  metricCol: {
     flex: 1,
+  },
+  metricDivider: {
+    width: 1,
+    height: 32,
+    backgroundColor: Colors.borderLight,
+    marginHorizontal: Spacing.sm,
+  },
+  metricLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+    letterSpacing: 0.5,
+  },
+  metricVal: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: Colors.navy,
+    fontVariant: ['tabular-nums'],
+    marginTop: 4,
+  },
+  metricStatusText: {
+    fontSize: 13,
+    fontWeight: '700',
+    marginTop: 6,
+  },
+  verifySimCta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: Colors.navy,
+    borderRadius: BorderRadius.sm,
+    minHeight: 48,
+  },
+  verifySimCtaText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  filterSection: {
+    marginBottom: Spacing.lg,
+    gap: Spacing.sm,
+  },
+  searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.surface,
-    borderWidth: 1.5,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: BorderRadius.md,
     paddingHorizontal: Spacing.md,
-    height: 42,
+    minHeight: 44,
+    gap: Spacing.xs,
   },
   searchInput: {
     flex: 1,
     fontSize: 14,
-    color: Colors.text,
-    marginLeft: Spacing.xs,
+    color: Colors.navy,
+    paddingVertical: 8,
   },
-  sortButton: {
+  tabsRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.surface,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-    borderRadius: BorderRadius.md,
-    paddingHorizontal: Spacing.md,
-    height: 42,
-  },
-  sortText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.primary,
-    marginLeft: 4,
-  },
-  listContent: {
-    padding: Spacing.lg,
-    paddingTop: Spacing.sm,
-  },
-  simCard: {
-    padding: Spacing.md,
-    marginBottom: Spacing.sm,
-  },
-  simCardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  phoneRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  simNumber: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: Colors.text,
-    marginLeft: Spacing.xs,
-    letterSpacing: 0.5,
-  },
-  simRhythm: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    marginTop: 4,
-  },
-  carrierTag: {
-    backgroundColor: 'rgba(30, 58, 138, 0.08)',
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 3,
-    borderRadius: BorderRadius.sm,
-  },
-  carrierText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: Colors.primary,
-  },
-  simCardDivider: {
-    height: 1,
-    backgroundColor: Colors.borderLight,
-    marginVertical: Spacing.sm,
-  },
-  simCardFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  statusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
     gap: Spacing.xs,
   },
-  verifiedTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.successLight,
-    paddingHorizontal: Spacing.xs + 2,
-    paddingVertical: 2,
-    borderRadius: BorderRadius.sm,
-  },
-  verifiedTagText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#065F46',
-    marginLeft: 2,
-  },
-  cardActions: {
-    flexDirection: 'row',
-  },
-  loadingFooter: {
-    paddingVertical: Spacing.lg,
-    alignItems: 'center',
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    paddingVertical: Spacing.xxxl,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: Colors.text,
-    marginTop: Spacing.md,
-  },
-  emptySubtitle: {
-    fontSize: 13,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-    marginTop: 4,
-    paddingHorizontal: Spacing.xl,
-  },
-  statusChipsRow: {
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.xs,
-    gap: Spacing.xs,
-  },
-  statusChip: {
+  filterTab: {
     paddingHorizontal: Spacing.md,
-    paddingVertical: 6,
-    borderRadius: BorderRadius.full,
+    paddingVertical: 8,
+    borderRadius: BorderRadius.sm,
     backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.border,
   },
-  statusChipActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
+  filterTabActive: {
+    backgroundColor: Colors.navy,
+    borderColor: Colors.navy,
   },
-  statusChipText: {
+  filterTabText: {
     fontSize: 12,
     fontWeight: '600',
     color: Colors.textSecondary,
   },
-  statusChipTextActive: {
-    color: Colors.textInverse,
+  filterTabTextActive: {
+    color: '#fff',
     fontWeight: '700',
+  },
+  listHeaderLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+    letterSpacing: 0.7,
+    marginBottom: Spacing.sm,
+  },
+  emptyPanel: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.xl,
+    alignItems: 'center',
+  },
+  emptyTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.navy,
+    marginTop: Spacing.sm,
+  },
+  emptySub: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 18,
+    marginTop: 4,
+  },
+  registryPanel: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    overflow: 'hidden',
+  },
+  simRow: {
+    padding: Spacing.md,
+  },
+  simRowDivider: {
+    borderTopWidth: 1,
+    borderTopColor: Colors.borderLight,
+  },
+  simTopLine: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: Spacing.sm,
+  },
+  phoneBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+  },
+  phoneNumberText: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: Colors.navy,
+    fontVariant: ['tabular-nums'],
+  },
+  carrierPill: {
+    backgroundColor: Colors.surfaceAlt,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  carrierPillText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+  },
+  simMetaText: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginTop: 3,
+  },
+  simBottomLine: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: Spacing.sm,
+    paddingTop: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: Colors.borderLight,
+  },
+  priceValueText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+    fontVariant: ['tabular-nums'],
+  },
+  reverifyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  reverifyBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.blue,
+  },
+  readyStatusText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.success,
   },
 });

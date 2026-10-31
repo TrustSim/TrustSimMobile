@@ -11,9 +11,8 @@ import {
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { BorderRadius, Colors, Shadows, Spacing } from '../../constants/theme';
-import { TrustLevelCard } from '../../components/trust/TrustLevelCard';
-import type { TrustLayer } from '../../components/trust/TrustLevelCard';
+import { BorderRadius, Colors, Spacing } from '../../constants/theme';
+import { VerificationStatusBadge } from '../../components/trust/VerificationStatusBadge';
 import { useAuth } from '../../context/AuthContext';
 
 export default function AccountScreen() {
@@ -31,7 +30,10 @@ export default function AccountScreen() {
 
   const handleLogout = () => {
     if (Platform.OS === 'web') {
-      if (typeof window !== 'undefined' && window.confirm('Bạn có chắc chắn muốn đăng xuất khỏi ứng dụng TrustSim?')) {
+      if (
+        typeof window !== 'undefined' &&
+        window.confirm('Bạn có chắc chắn muốn đăng xuất khỏi ứng dụng TrustSim?')
+      ) {
         performLogout();
       }
     } else {
@@ -48,53 +50,20 @@ export default function AccountScreen() {
 
   const isVerified = profile?.verificationStatus === 'VERIFIED';
   const isPending = profile?.verificationStatus === 'PENDING_VERIFICATION';
+  const isRejected = profile?.verificationStatus === 'REJECTED';
 
-  // Mask helper
   const maskSensitive = (str?: string) => {
     if (!str) return 'Chưa cập nhật';
     if (str.length <= 4) return '••••';
     return '•••• ' + str.slice(-4);
   };
 
-  // Build Trust ID layers
-  const trustLayers: TrustLayer[] = [
-    {
-      key: 'cccd_nfc',
-      label: 'CCCD gắn chip (NFC)',
-      sublabel: isVerified ? 'Đã đọc & xác thực chữ ký số chip C06' : 'Đọc chip bảo mật qua công nghệ NFC',
-      status: isVerified ? 'verified' : (isPending ? 'pending' : 'not_submitted'),
-      verifiedDate: profile?.verifiedAt,
-      nextAction: isVerified ? undefined : 'Quét NFC',
-      onAction: () => router.push('/kyc/nfc'),
-    },
-    {
-      key: 'ekyc_face',
-      label: 'Khuôn mặt & eKYC (AI Liveness)',
-      sublabel: isVerified ? 'Độ trùng khớp sinh trắc học 98%' : 'Chụp ảnh chân dung chống giả mạo',
-      status: isVerified ? 'verified' : (isPending ? 'pending' : 'not_submitted'),
-      verifiedDate: profile?.verifiedAt,
-      nextAction: isVerified ? undefined : 'Chụp eKYC',
-      onAction: () => router.push('/kyc'),
-    },
-    {
-      key: 'sim',
-      label: 'SIM chính chủ telco',
-      sublabel: 'Đối chiếu thuê bao nhà mạng Viettel / Vina / Mobi',
-      status: isVerified ? 'verified' : 'not_submitted',
-      nextAction: 'Đối soát',
-      onAction: () => router.push('/sims/verify'),
-    },
-    {
-      key: 'bank',
-      label: 'Tài khoản ngân hàng rút tiền',
-      sublabel: 'Tài khoản chính chủ nhận tiền thanh toán',
-      status: isVerified ? 'verified' : 'not_submitted',
-      nextAction: 'Quản lý',
-      onAction: () => router.push('/withdraw'),
-    },
-  ];
-
-  const overallLevel = isVerified ? 'full' : (isPending ? 'standard' : 'none');
+  const getKycBadgeStatus = () => {
+    if (isVerified) return 'verified' as const;
+    if (isPending) return 'pending' as const;
+    if (isRejected) return 'rejected' as const;
+    return 'not_submitted' as const;
+  };
 
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
@@ -102,108 +71,227 @@ export default function AccountScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Profile Card */}
-        <View style={styles.profileCard}>
-          <View style={styles.avatarCircle}>
-            <MaterialCommunityIcons name="account" size={36} color={Colors.navy} />
+        {/* Top Header */}
+        <View style={styles.headerRow}>
+          <View>
+            <Text style={styles.eyebrow}>XÁC THỰC CÁ NHÂN & BẢO MẬT</Text>
+            <Text style={styles.pageTitle}>Định Danh & Hồ Sơ</Text>
           </View>
-          <View style={styles.profileInfo}>
+          <VerificationStatusBadge
+            status={getKycBadgeStatus()}
+            label={
+              isVerified
+                ? 'Đã định danh'
+                : isPending
+                  ? 'Chờ duyệt'
+                  : isRejected
+                    ? 'Cần chụp lại'
+                    : 'Chưa định danh'
+            }
+          />
+        </View>
+
+        {/* User Identity Header Panel */}
+        <View style={styles.identityHeaderPanel}>
+          <View style={styles.avatarBox}>
+            <MaterialCommunityIcons name="shield-account-outline" size={26} color={Colors.navy} />
+          </View>
+          <View style={styles.identityTextCol}>
             <Text style={styles.userName}>
-              {profile?.fullName || user?.fullName || user?.userName || 'Người dùng TrustSim'}
+              {profile?.fullName || user?.fullName || user?.userName || 'Thành viên TrustSim'}
             </Text>
-            <Text style={styles.userEmail}>{profile?.email || user?.email}</Text>
+            <Text style={styles.userEmail}>{profile?.email || user?.email || '—'}</Text>
           </View>
         </View>
 
-        {/* Trust ID Section (Prominent) */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Hồ Sơ Định Danh (Trust ID)</Text>
-        </View>
-
-        <TrustLevelCard
-          layers={trustLayers}
-          overallLevel={overallLevel}
-          style={{ marginBottom: Spacing.lg }}
-        />
-
-        {/* Identity Details Card (Masked) */}
-        <View style={styles.detailsCard}>
-          <Text style={styles.cardHeaderTitle}>THÔNG TIN XÁC THỰC BẢO MẬT</Text>
-
-          <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Số CCCD/Định danh</Text>
-            <Text style={styles.detailValue}>{maskSensitive(profile?.identityNumber)}</Text>
-          </View>
-
-          <View style={styles.divider} />
-
-          <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Số điện thoại liên hệ</Text>
-            <Text style={styles.detailValue}>{maskSensitive(profile?.phoneNumber)}</Text>
-          </View>
-
-          <View style={styles.divider} />
-
-          <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Địa chỉ thường trú</Text>
-            <Text style={styles.detailValue} numberOfLines={1}>
-              {profile?.address || 'Đã mã hóa bảo mật'}
-            </Text>
-          </View>
-        </View>
-
-        {/* System & Navigation Links */}
-        <View style={styles.menuCard}>
-          <Text style={styles.cardHeaderTitle}>TIỆN ÍCH & GIAO DỊCH</Text>
-
-          <TouchableOpacity
-            style={styles.navRow}
-            onPress={() => router.push('/(tabs)/contracts')}
-            activeOpacity={0.7}
-            accessibilityRole="button"
-            accessibilityLabel="Hợp đồng điện tử"
-          >
-            <View style={styles.navLeft}>
-              <MaterialCommunityIcons name="file-document-outline" size={20} color={Colors.navy} />
-              <Text style={styles.navText}>Hợp đồng chuyển nhượng PAdES</Text>
+        {/* Rejection Warning if applicable */}
+        {isRejected ? (
+          <View style={styles.rejectBanner}>
+            <MaterialCommunityIcons name="alert-circle-outline" size={18} color={Colors.danger} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rejectBannerTitle}>Hồ sơ định danh cần chụp lại</Text>
+              <Text style={styles.rejectBannerReason}>
+                Ảnh giấy tờ hoặc khuôn mặt chưa đạt tiêu chuẩn đối soát. Vui lòng thực hiện chụp lại.
+              </Text>
             </View>
-            <MaterialCommunityIcons name="chevron-right" size={20} color={Colors.textMuted} />
+          </View>
+        ) : null}
+
+        {/* Core Verification Operations (eKYC + NFC + SIM) */}
+        <View style={styles.sectionHeaderRow}>
+          <Text style={styles.sectionLabel}>NGHIỆP VỤ ĐỊNH DANH BẮT BUỘC</Text>
+        </View>
+
+        <View style={styles.ledgerPanel}>
+          {/* 1. Chụp ảnh CCCD & Khuôn mặt (3 bước) */}
+          <TouchableOpacity
+            style={styles.opRow}
+            onPress={() => router.push('/kyc')}
+            activeOpacity={0.75}
+            accessibilityRole="button"
+            accessibilityLabel="Xác thực CCCD và khuôn mặt"
+          >
+            <View style={styles.opIconBox}>
+              <MaterialCommunityIcons
+                name="card-account-details-outline"
+                size={20}
+                color={Colors.navy}
+              />
+            </View>
+            <View style={styles.opContent}>
+              <Text style={styles.opTitle}>Chụp CCCD & Khuôn mặt (3 bước)</Text>
+              <Text style={styles.opDesc}>
+                Chụp mặt trước, mặt sau CCCD và ảnh chân dung trực tiếp
+              </Text>
+            </View>
+            <View style={styles.opRight}>
+              <VerificationStatusBadge status={getKycBadgeStatus()} size="sm" />
+              <MaterialCommunityIcons name="chevron-right" size={18} color={Colors.textMuted} />
+            </View>
           </TouchableOpacity>
 
-          <View style={styles.divider} />
+          <View style={styles.hairlineH} />
 
+          {/* 2. Đọc chip CCCD qua NFC */}
           <TouchableOpacity
-            style={styles.navRow}
-            onPress={() => router.push('/transactions')}
-            activeOpacity={0.7}
+            style={styles.opRow}
+            onPress={() => router.push('/kyc/nfc')}
+            activeOpacity={0.75}
             accessibilityRole="button"
-            accessibilityLabel="Lịch sử giao dịch ví"
+            accessibilityLabel="Đọc chip CCCD qua NFC"
           >
-            <View style={styles.navLeft}>
-              <MaterialCommunityIcons name="history" size={20} color={Colors.navy} />
-              <Text style={styles.navText}>Lịch sử giao dịch ví</Text>
+            <View style={styles.opIconBox}>
+              <MaterialCommunityIcons name="nfc-variant" size={20} color={Colors.navy} />
             </View>
-            <MaterialCommunityIcons name="chevron-right" size={20} color={Colors.textMuted} />
+            <View style={styles.opContent}>
+              <Text style={styles.opTitle}>Đọc chip CCCD gắn chip (NFC)</Text>
+              <Text style={styles.opDesc}>
+                Quét dữ liệu bảo mật từ chip điện tử hoặc chọn xác thực thủ công
+              </Text>
+            </View>
+            <View style={styles.opRight}>
+              <Text style={styles.actionLinkText}>{isVerified ? 'Đã xác thực' : 'Quét chip'}</Text>
+              <MaterialCommunityIcons name="chevron-right" size={18} color={Colors.textMuted} />
+            </View>
           </TouchableOpacity>
 
-          <View style={styles.divider} />
+          <View style={styles.hairlineH} />
 
+          {/* 3. Xác thực SIM chính chủ */}
           <TouchableOpacity
-            style={styles.navRow}
+            style={styles.opRow}
             onPress={() => router.push('/sims/verify')}
-            activeOpacity={0.7}
+            activeOpacity={0.75}
             accessibilityRole="button"
             accessibilityLabel="Xác thực SIM chính chủ"
           >
-            <View style={styles.navLeft}>
-              <MaterialCommunityIcons name="sim" size={20} color={Colors.navy} />
-              <Text style={styles.navText}>Đối soát SIM chính chủ</Text>
+            <View style={styles.opIconBox}>
+              <MaterialCommunityIcons name="sim-outline" size={20} color={Colors.navy} />
             </View>
-            <MaterialCommunityIcons name="chevron-right" size={20} color={Colors.textMuted} />
+            <View style={styles.opContent}>
+              <Text style={styles.opTitle}>Xác thực SIM chính chủ (SMS OTP)</Text>
+              <Text style={styles.opDesc}>
+                Đối soát thông tin chủ thuê bao trùng khớp với hồ sơ CCCD
+              </Text>
+            </View>
+            <View style={styles.opRight}>
+              <Text style={styles.actionLinkText}>Đối soát</Text>
+              <MaterialCommunityIcons name="chevron-right" size={18} color={Colors.textMuted} />
+            </View>
+          </TouchableOpacity>
+
+          <View style={styles.hairlineH} />
+
+          {/* 4. Tài khoản ngân hàng nhận tiền */}
+          <TouchableOpacity
+            style={styles.opRow}
+            onPress={() => router.push('/withdraw')}
+            activeOpacity={0.75}
+            accessibilityRole="button"
+            accessibilityLabel="Tài khoản ngân hàng nhận tiền"
+          >
+            <View style={styles.opIconBox}>
+              <MaterialCommunityIcons name="bank-outline" size={20} color={Colors.navy} />
+            </View>
+            <View style={styles.opContent}>
+              <Text style={styles.opTitle}>Tài khoản ngân hàng thụ hưởng</Text>
+              <Text style={styles.opDesc}>
+                Chỉ cho phép rút tiền về tài khoản trùng tên trên CCCD
+              </Text>
+            </View>
+            <View style={styles.opRight}>
+              <Text style={styles.actionLinkText}>Kiểm tra</Text>
+              <MaterialCommunityIcons name="chevron-right" size={18} color={Colors.textMuted} />
+            </View>
           </TouchableOpacity>
         </View>
 
-        {/* Logout Button */}
+        {/* Masked Personal Identity Record */}
+        <View style={styles.sectionHeaderRow}>
+          <Text style={styles.sectionLabel}>DỮ LIỆU ĐỊNH DANH ĐÃ LƯU TRỮ</Text>
+        </View>
+
+        <View style={styles.ledgerPanel}>
+          <View style={styles.dataRow}>
+            <Text style={styles.dataLabel}>Họ và tên pháp lý</Text>
+            <Text style={styles.dataValue}>
+              {profile?.fullName || user?.fullName || 'Chưa cập nhật'}
+            </Text>
+          </View>
+
+          <View style={styles.hairlineH} />
+
+          <View style={styles.dataRow}>
+            <Text style={styles.dataLabel}>Số CCCD / Định danh</Text>
+            <Text style={[styles.dataValue, styles.monoText]}>
+              {maskSensitive(profile?.identityNumber)}
+            </Text>
+          </View>
+
+          <View style={styles.hairlineH} />
+
+          <View style={styles.dataRow}>
+            <Text style={styles.dataLabel}>Số điện thoại liên kết</Text>
+            <Text style={[styles.dataValue, styles.monoText]}>
+              {maskSensitive(profile?.phoneNumber)}
+            </Text>
+          </View>
+
+          <View style={styles.hairlineH} />
+
+          <View style={styles.dataRow}>
+            <Text style={styles.dataLabel}>Nơi thường trú</Text>
+            <Text style={styles.dataValue} numberOfLines={1}>
+              {profile?.address || 'Đã ẩn bảo mật'}
+            </Text>
+          </View>
+        </View>
+
+        {/* Quick Evidence & Dispute Access */}
+        <View style={styles.sectionHeaderRow}>
+          <Text style={styles.sectionLabel}>TRA CỨU CHUYỂN NHƯỢNG & HỒ SƠ</Text>
+        </View>
+
+        <View style={styles.ledgerPanel}>
+          <TouchableOpacity
+            style={styles.opRow}
+            onPress={() => router.push('/(tabs)/contracts')}
+            activeOpacity={0.75}
+          >
+            <View style={styles.opIconBox}>
+              <MaterialCommunityIcons name="camera-document" size={20} color={Colors.navy} />
+            </View>
+            <View style={styles.opContent}>
+              <Text style={styles.opTitle}>Quá trình chuyển nhượng & Bằng chứng</Text>
+              <Text style={styles.opDesc}>
+                Xem hợp đồng, chụp biên nhận sang tên hoặc báo cáo sự cố trong giao dịch
+              </Text>
+            </View>
+            <MaterialCommunityIcons name="chevron-right" size={18} color={Colors.textMuted} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Logout Action */}
         <TouchableOpacity
           style={styles.logoutBtn}
           onPress={handleLogout}
@@ -212,10 +300,12 @@ export default function AccountScreen() {
           accessibilityLabel="Đăng xuất tài khoản"
         >
           <MaterialCommunityIcons name="logout" size={18} color={Colors.danger} />
-          <Text style={styles.logoutBtnText}>Đăng Xuất Tài Khoản</Text>
+          <Text style={styles.logoutBtnText}>Đăng Xuất Khỏi Thiết Bị</Text>
         </TouchableOpacity>
 
-        <Text style={styles.versionText}>TrustSim Mobile · Kiến trúc Trust Ledger v2.0</Text>
+        <Text style={styles.footerVersion}>
+          TrustSim Mobile · Thiết bị xác thực & bảo chứng giao dịch
+        </Text>
       </ScrollView>
     </SafeAreaView>
   );
@@ -230,109 +320,163 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     paddingBottom: Spacing.xxxl,
   },
-  profileCard: {
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: Spacing.md,
+  },
+  eyebrow: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: Colors.textMuted,
+    letterSpacing: 0.8,
+  },
+  pageTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: Colors.navy,
+    marginTop: 2,
+  },
+  identityHeaderPanel: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.lg,
+    borderRadius: BorderRadius.md,
     borderWidth: 1,
     borderColor: Colors.border,
-    padding: Spacing.lg,
-    marginBottom: Spacing.lg,
-    ...Shadows.card,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
   },
-  avatarCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+  avatarBox: {
+    width: 46,
+    height: 46,
+    borderRadius: BorderRadius.sm,
+    backgroundColor: Colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: Spacing.md,
+  },
+  identityTextCol: {
+    flex: 1,
+  },
+  userName: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: Colors.navy,
+  },
+  userEmail: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  rejectBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.sm,
+    backgroundColor: Colors.dangerLight,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: BorderRadius.sm,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+  },
+  rejectBannerTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: Colors.danger,
+  },
+  rejectBannerReason: {
+    fontSize: 12,
+    color: Colors.navy,
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  sectionHeaderRow: {
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.xs,
+  },
+  sectionLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: Colors.textSecondary,
+    letterSpacing: 0.7,
+  },
+  ledgerPanel: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    overflow: 'hidden',
+    marginBottom: Spacing.md,
+  },
+  hairlineH: {
+    height: 1,
+    backgroundColor: Colors.borderLight,
+  },
+  opRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 14,
+  },
+  opIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: BorderRadius.sm,
     backgroundColor: Colors.surfaceAlt,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: Spacing.md,
   },
-  profileInfo: {
+  opContent: {
     flex: 1,
+    paddingRight: Spacing.sm,
   },
-  userName: {
-    fontSize: 17,
-    fontWeight: '800',
+  opTitle: {
+    fontSize: 13,
+    fontWeight: '700',
     color: Colors.navy,
   },
-  userEmail: {
-    fontSize: 13,
+  opDesc: {
+    fontSize: 11,
     color: Colors.textSecondary,
     marginTop: 2,
+    lineHeight: 15,
   },
-  sectionHeader: {
-    marginBottom: Spacing.sm,
+  opRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
-  sectionTitle: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: Colors.navy,
+  actionLinkText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.blue,
   },
-  detailsCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    padding: Spacing.md,
-    marginBottom: Spacing.lg,
-    ...Shadows.card,
-  },
-  cardHeaderTitle: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: Colors.textMuted,
-    letterSpacing: 0.5,
-    marginBottom: Spacing.sm,
-  },
-  detailRow: {
+  dataRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: Spacing.xs + 2,
-    minHeight: 40,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 13,
   },
-  detailLabel: {
-    fontSize: 13,
+  dataLabel: {
+    fontSize: 12,
     color: Colors.textSecondary,
   },
-  detailValue: {
+  dataValue: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '700',
     color: Colors.navy,
+    maxWidth: '58%',
+    textAlign: 'right',
+  },
+  monoText: {
     fontFamily: 'monospace',
-  },
-  divider: {
-    height: 1,
-    backgroundColor: Colors.borderLight,
-  },
-  menuCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    padding: Spacing.md,
-    marginBottom: Spacing.xl,
-    ...Shadows.card,
-  },
-  navRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: Spacing.sm,
-    minHeight: 48,
-  },
-  navLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  navText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.navy,
+    fontVariant: ['tabular-nums'],
   },
   logoutBtn: {
     flexDirection: 'row',
@@ -342,19 +486,19 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: '#FECACA',
-    borderRadius: BorderRadius.md,
-    minHeight: 48,
+    borderRadius: BorderRadius.sm,
+    minHeight: 46,
+    marginTop: Spacing.xs,
     marginBottom: Spacing.md,
   },
   logoutBtnText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
     color: Colors.danger,
   },
-  versionText: {
-    fontSize: 12,
+  footerVersion: {
+    fontSize: 11,
     color: Colors.textMuted,
     textAlign: 'center',
-    marginTop: Spacing.sm,
   },
 });

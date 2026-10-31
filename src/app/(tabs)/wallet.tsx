@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   RefreshControl,
   ScrollView,
@@ -10,21 +10,24 @@ import {
 import { useFocusEffect, useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { BorderRadius, Colors, Shadows, Spacing } from '../../constants/theme';
+import { BorderRadius, Colors, Spacing } from '../../constants/theme';
 import { VerificationStatusBadge } from '../../components/trust/VerificationStatusBadge';
 import { useAuth } from '../../context/AuthContext';
 import { walletService } from '../../services/walletService';
 import { WalletTransactionDto } from '../../types';
+
+type TxFilter = 'ALL' | 'TOP_UP' | 'WITHDRAW';
 
 export default function WalletScreen() {
   const router = useRouter();
   const { wallet, refreshWallet } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
   const [recentTransactions, setRecentTransactions] = useState<WalletTransactionDto[]>([]);
+  const [filter, setFilter] = useState<TxFilter>('ALL');
 
   const fetchRecentHistory = useCallback(async () => {
     try {
-      const res = await walletService.getTransactions({ pageIndex: 1, pageSize: 6 });
+      const res = await walletService.getTransactions({ pageIndex: 1, pageSize: 15 });
       if (res.success && res.data?.items) {
         setRecentTransactions(res.data.items);
       } else {
@@ -50,18 +53,26 @@ export default function WalletScreen() {
 
   const availableBal = wallet?.availableBalance ?? 0;
   const lockedBal = wallet?.lockedBalance ?? 0;
-  const totalBal = wallet?.totalBalance ?? (availableBal + lockedBal);
+  const totalBal = wallet?.totalBalance ?? availableBal + lockedBal;
+
+  const filteredTransactions = useMemo(() => {
+    if (filter === 'ALL') return recentTransactions;
+    return recentTransactions.filter((tx) => {
+      const type = tx.walletTransactionType || tx.type;
+      return filter === 'TOP_UP' ? type === 'TOP_UP' : type !== 'TOP_UP';
+    });
+  }, [recentTransactions, filter]);
 
   const getStatusBadge = (status?: string) => {
     switch (status) {
       case 'COMPLETED':
       case 'SUCCESS':
-        return <VerificationStatusBadge status="verified" label="Thành công" size="sm" />;
+        return <VerificationStatusBadge status="verified" label="Hoàn tất" size="sm" />;
       case 'PENDING':
-        return <VerificationStatusBadge status="pending" label="Đang xử lý" size="sm" />;
+        return <VerificationStatusBadge status="pending" label="Chờ duyệt" size="sm" />;
       case 'FAILED':
       case 'CANCELLED':
-        return <VerificationStatusBadge status="rejected" label="Thất bại" size="sm" />;
+        return <VerificationStatusBadge status="rejected" label="Từ chối" size="sm" />;
       default:
         return <VerificationStatusBadge status="not_submitted" label={status || 'Khác'} size="sm" />;
     }
@@ -71,164 +82,190 @@ export default function WalletScreen() {
     <SafeAreaView edges={['top']} style={styles.safeArea}>
       <ScrollView
         contentContainerStyle={styles.scrollContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.blue} />}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.blue} />
+        }
         showsVerticalScrollIndicator={false}
       >
         {/* Top Header */}
-        <View style={styles.topBar}>
-          <Text style={styles.pageTitle}>Ví Tiền</Text>
-          <View style={styles.statusPill}>
-            <View style={styles.activeDot} />
-            <Text style={styles.statusText}>{wallet?.walletStatus || 'HOẠT ĐỘNG'}</Text>
+        <View style={styles.headerRow}>
+          <View>
+            <Text style={styles.eyebrow}>SỔ CÁI TÀI CHÍNH & THANH TOÁN</Text>
+            <Text style={styles.pageTitle}>Ví Tiền</Text>
           </View>
-        </View>
-
-        {/* Thẻ số dư ví */}
-        <View style={styles.masterCard}>
-          <View style={styles.masterHeader}>
-            <View>
-              <Text style={styles.availableLabel}>SỐ DƯ KHẢ DỤNG</Text>
-              <Text style={styles.availableAmount}>
-                {availableBal.toLocaleString('vi-VN')}{' '}
-                <Text style={styles.currencySymbol}>₫</Text>
-              </Text>
-            </View>
-            <View style={styles.shieldIconBox}>
-              <MaterialCommunityIcons name="shield-lock" size={22} color={Colors.navy} />
-            </View>
-          </View>
-
-          {/* Phân tách: Tiền ký quỹ & Tổng số dư */}
-          <View style={styles.breakdownBox}>
-            <View style={styles.breakdownCol}>
-              <Text style={styles.breakdownLabel}>Tiền ký quỹ an toàn</Text>
-              <Text style={[styles.breakdownAmount, { color: Colors.warning }]}>
-                {lockedBal.toLocaleString('vi-VN')} ₫
-              </Text>
-              <Text style={styles.breakdownNote}>Bảo đảm giao dịch chuyển nhượng</Text>
-            </View>
-            <View style={styles.breakdownDivider} />
-            <View style={styles.breakdownCol}>
-              <Text style={styles.breakdownLabel}>Tổng số dư ví</Text>
-              <Text style={styles.breakdownAmount}>
-                {totalBal.toLocaleString('vi-VN')} ₫
-              </Text>
-              <Text style={styles.breakdownNote}>Khả dụng + Ký quỹ</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Nút hành động */}
-        <View style={styles.actionsRow}>
-          <TouchableOpacity
-            style={[styles.actionBtn, styles.actionBtnPrimary]}
-            onPress={() => router.push('/deposit')}
-            activeOpacity={0.85}
-            accessibilityRole="button"
-            accessibilityLabel="Nạp tiền vào ví"
-          >
-            <MaterialCommunityIcons name="plus-circle" size={20} color="#fff" />
-            <Text style={styles.actionBtnPrimaryText}>Nạp tiền</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.actionBtn, styles.actionBtnSecondary]}
-            onPress={() => router.push('/withdraw')}
-            activeOpacity={0.85}
-            accessibilityRole="button"
-            accessibilityLabel="Rút tiền về ngân hàng"
-          >
-            <MaterialCommunityIcons name="arrow-up-circle-outline" size={20} color={Colors.navy} />
-            <Text style={styles.actionBtnSecondaryText}>Rút tiền</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.actionBtn, styles.actionBtnSecondary]}
-            onPress={() => router.push('/transactions')}
-            activeOpacity={0.85}
-            accessibilityRole="button"
-            accessibilityLabel="Xem lịch sử giao dịch"
-          >
-            <MaterialCommunityIcons name="file-document-outline" size={20} color={Colors.navy} />
-            <Text style={styles.actionBtnSecondaryText}>Lịch sử</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Giải thích cơ chế bảo vệ ký quỹ */}
-        <View style={styles.infoCard}>
-          <MaterialCommunityIcons name="lock-check-outline" size={20} color={Colors.blue} />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.infoTitle}>Cơ chế bảo vệ ký quỹ an toàn</Text>
-            <Text style={styles.infoDesc}>
-              Số tiền cọc khi giao dịch được tạm giữ bảo đảm. Khi bên bán hoàn tất sang tên chính chủ và bên mua xác nhận đã nhận SIM, tiền mới được giải ngân.
+          <View style={styles.statusChip}>
+            <View style={styles.statusDot} />
+            <Text style={styles.statusChipText}>
+              {wallet?.walletStatus === 'LOCKED' ? 'TẠM KHÓA' : 'HOẠT ĐỘNG'}
             </Text>
           </View>
         </View>
 
-        {/* Giao dịch gần đây */}
+        {/* Financial Balance Ledger Panel */}
+        <View style={styles.ledgerPanel}>
+          <View style={styles.balanceMainBlock}>
+            <Text style={styles.balanceLabel}>SỐ DƯ KHẢ DỤNG</Text>
+            <Text style={styles.balanceValue}>
+              {availableBal.toLocaleString('vi-VN')} <Text style={styles.currencyUnit}>₫</Text>
+            </Text>
+          </View>
+
+          <View style={styles.hairlineH} />
+
+          <View style={styles.subLedgerGrid}>
+            <View style={styles.subLedgerCell}>
+              <Text style={styles.subLedgerLabel}>TIỀN ĐANG KÝ QUỸ</Text>
+              <Text style={[styles.subLedgerValue, { color: Colors.amber }]}>
+                {lockedBal.toLocaleString('vi-VN')} ₫
+              </Text>
+              <Text style={styles.subLedgerNote}>Tạm giữ bảo đảm giao dịch</Text>
+            </View>
+            <View style={styles.hairlineV} />
+            <View style={styles.subLedgerCell}>
+              <Text style={styles.subLedgerLabel}>TỔNG TÀI SẢN VÍ</Text>
+              <Text style={styles.subLedgerValue}>{totalBal.toLocaleString('vi-VN')} ₫</Text>
+              <Text style={styles.subLedgerNote}>Khả dụng + Ký quỹ</Text>
+            </View>
+          </View>
+
+          <View style={styles.hairlineH} />
+
+          {/* Primary Financial Operations */}
+          <View style={styles.actionRow}>
+            <TouchableOpacity
+              style={styles.primaryActionBtn}
+              onPress={() => router.push('/deposit')}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="Nạp tiền vào ví"
+            >
+              <MaterialCommunityIcons name="arrow-down-left" size={18} color="#FFFFFF" />
+              <Text style={styles.primaryActionText}>Nạp tiền (VietQR)</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.secondaryActionBtn}
+              onPress={() => router.push('/withdraw')}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="Rút tiền ngân hàng"
+            >
+              <MaterialCommunityIcons name="arrow-up-right" size={18} color={Colors.navy} />
+              <Text style={styles.secondaryActionText}>Rút về ngân hàng</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Concise Escrow Rule Strip */}
+        <View style={styles.policyStrip}>
+          <MaterialCommunityIcons name="shield-lock-outline" size={16} color={Colors.navy} />
+          <Text style={styles.policyText}>
+            Tiền ký quỹ chỉ giải ngân cho người bán sau khi hoàn tất sang tên SIM hoặc có quyết định xử lý khiếu nại.
+          </Text>
+        </View>
+
+        {/* Transaction History Header & Filters */}
         <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionTitle}>Giao Dịch Gần Đây</Text>
-          <TouchableOpacity onPress={() => router.push('/transactions')}>
-            <Text style={styles.seeAllBtn}>Xem tất cả</Text>
+          <Text style={styles.sectionLabel}>BIẾN ĐỘNG SỐ DƯ</Text>
+          <TouchableOpacity onPress={() => router.push('/transactions')} activeOpacity={0.7}>
+            <Text style={styles.viewAllLink}>Toàn bộ sao kê</Text>
           </TouchableOpacity>
         </View>
 
-        {recentTransactions.length === 0 ? (
-          <View style={styles.emptyCard}>
-            <MaterialCommunityIcons name="receipt-outline" size={36} color={Colors.textMuted} />
-            <Text style={styles.emptyText}>Chưa có biến động số dư</Text>
+        <View style={styles.filterRow}>
+          {(
+            [
+              { key: 'ALL', label: 'Tất cả' },
+              { key: 'TOP_UP', label: 'Nạp tiền' },
+              { key: 'WITHDRAW', label: 'Rút tiền' },
+            ] as { key: TxFilter; label: string }[]
+          ).map((item) => {
+            const active = filter === item.key;
+            return (
+              <TouchableOpacity
+                key={item.key}
+                style={[styles.filterPill, active && styles.filterPillActive]}
+                onPress={() => setFilter(item.key)}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.filterPillText, active && styles.filterPillTextActive]}>
+                  {item.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {/* Unified Transaction Ledger Table */}
+        {filteredTransactions.length === 0 ? (
+          <View style={styles.emptyPanel}>
+            <MaterialCommunityIcons name="receipt-text-outline" size={28} color={Colors.textMuted} />
+            <Text style={styles.emptyTitle}>Chưa có giao dịch phù hợp</Text>
+            <Text style={styles.emptySub}>
+              Mọi lệnh nạp tiền VietQR và rút tiền ngân hàng sẽ được ghi nhận tại sổ cái này.
+            </Text>
           </View>
         ) : (
-          recentTransactions.map((tx) => {
-            const isTopUp = tx.walletTransactionType === 'TOP_UP' || tx.type === 'TOP_UP';
-            const txDate = tx.createdAt
-              ? new Date(tx.createdAt).toLocaleDateString('vi-VN', {
+          <View style={styles.txLedgerPanel}>
+            {filteredTransactions.map((tx, idx) => {
+              const isTopUp = tx.walletTransactionType === 'TOP_UP' || tx.type === 'TOP_UP';
+              const txDate = tx.createdAt
+                ? new Date(tx.createdAt).toLocaleDateString('vi-VN', {
                   day: '2-digit',
                   month: '2-digit',
+                  year: 'numeric',
                   hour: '2-digit',
                   minute: '2-digit',
                 })
-              : '';
+                : '—';
 
-            return (
-              <View key={tx.id || tx.transactionCode} style={styles.txCard}>
-                <View
-                  style={[
-                    styles.txIconBox,
-                    { backgroundColor: isTopUp ? Colors.successLight : Colors.surfaceAlt },
-                  ]}
-                >
-                  <MaterialCommunityIcons
-                    name={isTopUp ? 'arrow-down-left' : 'arrow-up-right'}
-                    size={22}
-                    color={isTopUp ? Colors.success : Colors.navy}
-                  />
-                </View>
+              return (
+                <React.Fragment key={tx.id || tx.transactionCode || idx}>
+                  {idx > 0 && <View style={styles.hairlineH} />}
+                  <View style={styles.txRow}>
+                    <View
+                      style={[
+                        styles.txTypeIndicator,
+                        { backgroundColor: isTopUp ? Colors.successLight : Colors.surfaceAlt },
+                      ]}
+                    >
+                      <MaterialCommunityIcons
+                        name={isTopUp ? 'arrow-down-left' : 'arrow-up-right'}
+                        size={18}
+                        color={isTopUp ? Colors.success : Colors.navy}
+                      />
+                    </View>
 
-                <View style={styles.txContent}>
-                  <Text style={styles.txTitle}>
-                    {isTopUp ? 'Nạp tiền vào ví' : 'Rút tiền về ngân hàng'}
-                  </Text>
-                  <Text style={styles.txCode}>#{tx.transactionCode}</Text>
-                  <Text style={styles.txDate}>{txDate}</Text>
-                </View>
+                    <View style={styles.txMetaCol}>
+                      <Text style={styles.txTitle}>
+                        {isTopUp ? 'Nạp tiền vào ví' : 'Rút tiền về ngân hàng'}
+                      </Text>
+                      <View style={styles.txSubRow}>
+                        <Text style={styles.txCode}>#{tx.transactionCode}</Text>
+                        <Text style={styles.txDot}>·</Text>
+                        <Text style={styles.txDate}>{txDate}</Text>
+                      </View>
+                    </View>
 
-                <View style={styles.txAmountBox}>
-                  <Text
-                    style={[
-                      styles.txAmount,
-                      { color: isTopUp ? Colors.success : Colors.navy },
-                    ]}
-                  >
-                    {isTopUp ? '+' : '-'}{Math.abs(tx.amount).toLocaleString('vi-VN')} ₫
-                  </Text>
-                  <View style={{ marginTop: 4 }}>
-                    {getStatusBadge(tx.transactionStatus || tx.status)}
+                    <View style={styles.txAmountCol}>
+                      <Text
+                        style={[
+                          styles.txAmount,
+                          { color: isTopUp ? Colors.success : Colors.navy },
+                        ]}
+                      >
+                        {isTopUp ? '+' : '-'}
+                        {Math.abs(tx.amount).toLocaleString('vi-VN')} ₫
+                      </Text>
+                      <View style={{ marginTop: 4 }}>
+                        {getStatusBadge(tx.transactionStatus || tx.status)}
+                      </View>
+                    </View>
                   </View>
-                </View>
-              </View>
-            );
-          })
+                </React.Fragment>
+              );
+            })}
+          </View>
         )}
       </ScrollView>
     </SafeAreaView>
@@ -244,164 +281,165 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     paddingBottom: Spacing.xxxl,
   },
-  topBar: {
+  headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: Spacing.lg,
+    alignItems: 'flex-start',
+    marginBottom: Spacing.md,
+  },
+  eyebrow: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: Colors.textMuted,
+    letterSpacing: 0.8,
   },
   pageTitle: {
     fontSize: 22,
     fontWeight: '800',
     color: Colors.navy,
+    marginTop: 2,
   },
-  statusPill: {
+  statusChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.border,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 4,
-    borderRadius: BorderRadius.full,
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
   },
-  activeDot: {
+  statusDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
     backgroundColor: Colors.success,
   },
-  statusText: {
-    fontSize: 11,
-    fontWeight: '700',
+  statusChipText: {
+    fontSize: 10,
+    fontWeight: '800',
     color: Colors.navy,
-  },
-  masterCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    padding: Spacing.lg,
-    marginBottom: Spacing.md,
-    ...Shadows.card,
-  },
-  masterHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: Spacing.md,
-  },
-  availableLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: Colors.textSecondary,
     letterSpacing: 0.5,
   },
-  availableAmount: {
-    fontSize: 30,
+  ledgerPanel: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    overflow: 'hidden',
+    marginBottom: Spacing.sm,
+  },
+  balanceMainBlock: {
+    padding: Spacing.lg,
+  },
+  balanceLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+    letterSpacing: 0.7,
+  },
+  balanceValue: {
+    fontSize: 32,
     fontWeight: '800',
     color: Colors.navy,
     fontVariant: ['tabular-nums'],
-    marginTop: 2,
+    marginTop: 4,
   },
-  currencySymbol: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: Colors.textSecondary,
-  },
-  shieldIconBox: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: Colors.surfaceAlt,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  breakdownBox: {
-    flexDirection: 'row',
-    backgroundColor: Colors.surfaceAlt,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.md,
-  },
-  breakdownCol: {
-    flex: 1,
-  },
-  breakdownDivider: {
-    width: 1,
-    backgroundColor: Colors.border,
-    marginHorizontal: Spacing.sm,
-  },
-  breakdownLabel: {
-    fontSize: 11,
-    color: Colors.textSecondary,
-  },
-  breakdownAmount: {
-    fontSize: 15,
+  currencyUnit: {
+    fontSize: 18,
     fontWeight: '700',
+    color: Colors.textSecondary,
+  },
+  hairlineH: {
+    height: 1,
+    backgroundColor: Colors.borderLight,
+  },
+  hairlineV: {
+    width: 1,
+    backgroundColor: Colors.borderLight,
+  },
+  subLedgerGrid: {
+    flexDirection: 'row',
+    backgroundColor: '#FAFBFD',
+  },
+  subLedgerCell: {
+    flex: 1,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+  },
+  subLedgerLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: Colors.textMuted,
+    letterSpacing: 0.5,
+  },
+  subLedgerValue: {
+    fontSize: 15,
+    fontWeight: '800',
     color: Colors.navy,
     fontVariant: ['tabular-nums'],
+    marginTop: 3,
+  },
+  subLedgerNote: {
+    fontSize: 11,
+    color: Colors.textSecondary,
     marginTop: 2,
   },
-  breakdownNote: {
-    fontSize: 10,
-    color: Colors.textMuted,
-    marginTop: 2,
-  },
-  actionsRow: {
+  actionRow: {
     flexDirection: 'row',
+    padding: Spacing.md,
     gap: Spacing.sm,
-    marginBottom: Spacing.lg,
   },
-  actionBtn: {
+  primaryActionBtn: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    minHeight: 48,
-    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.navy,
+    borderRadius: BorderRadius.sm,
+    minHeight: 46,
   },
-  actionBtnPrimary: {
-    backgroundColor: Colors.blue,
-  },
-  actionBtnPrimaryText: {
-    fontSize: 14,
+  primaryActionText: {
+    fontSize: 13,
     fontWeight: '700',
-    color: '#fff',
+    color: '#FFFFFF',
   },
-  actionBtnSecondary: {
+  secondaryActionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
     backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.border,
-    ...Shadows.card,
+    borderRadius: BorderRadius.sm,
+    minHeight: 46,
   },
-  actionBtnSecondaryText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: Colors.navy,
-  },
-  infoCard: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: Spacing.sm,
-    backgroundColor: 'rgba(22, 102, 197, 0.05)',
-    borderWidth: 1,
-    borderColor: 'rgba(22, 102, 197, 0.15)',
-    borderRadius: BorderRadius.md,
-    padding: Spacing.md,
-    marginBottom: Spacing.lg,
-  },
-  infoTitle: {
+  secondaryActionText: {
     fontSize: 13,
     fontWeight: '700',
     color: Colors.navy,
   },
-  infoDesc: {
-    fontSize: 12,
+  policyStrip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    marginBottom: Spacing.xl,
+  },
+  policyText: {
+    flex: 1,
+    fontSize: 11,
     color: Colors.textSecondary,
-    lineHeight: 17,
-    marginTop: 2,
+    lineHeight: 16,
   },
   sectionHeaderRow: {
     flexDirection: 'row',
@@ -409,68 +447,114 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: Spacing.sm,
   },
-  sectionTitle: {
-    fontSize: 15,
+  sectionLabel: {
+    fontSize: 11,
     fontWeight: '800',
-    color: Colors.navy,
+    color: Colors.textSecondary,
+    letterSpacing: 0.7,
   },
-  seeAllBtn: {
-    fontSize: 13,
-    fontWeight: '600',
+  viewAllLink: {
+    fontSize: 12,
+    fontWeight: '700',
     color: Colors.blue,
   },
-  emptyCard: {
+  filterRow: {
+    flexDirection: 'row',
+    gap: Spacing.xs,
+    marginBottom: Spacing.sm,
+  },
+  filterPill: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: BorderRadius.sm,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  filterPillActive: {
+    backgroundColor: Colors.navy,
+    borderColor: Colors.navy,
+  },
+  filterPillText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+  },
+  filterPillTextActive: {
+    color: '#FFFFFF',
+  },
+  emptyPanel: {
     backgroundColor: Colors.surface,
     borderRadius: BorderRadius.md,
     borderWidth: 1,
     borderColor: Colors.border,
+    padding: Spacing.xl,
     alignItems: 'center',
-    paddingVertical: Spacing.xxxl,
   },
-  emptyText: {
-    fontSize: 13,
-    color: Colors.textMuted,
+  emptyTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.navy,
     marginTop: Spacing.sm,
   },
-  txCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  emptySub: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    marginTop: 4,
+    lineHeight: 17,
+  },
+  txLedgerPanel: {
     backgroundColor: Colors.surface,
     borderRadius: BorderRadius.md,
     borderWidth: 1,
     borderColor: Colors.border,
-    padding: Spacing.md,
-    marginBottom: Spacing.xs,
-    ...Shadows.card,
+    overflow: 'hidden',
   },
-  txIconBox: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  txRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 14,
+  },
+  txTypeIndicator: {
+    width: 36,
+    height: 36,
+    borderRadius: BorderRadius.sm,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: Spacing.md,
   },
-  txContent: {
+  txMetaCol: {
     flex: 1,
+    paddingRight: Spacing.sm,
   },
   txTitle: {
     fontSize: 13,
     fontWeight: '700',
     color: Colors.navy,
   },
+  txSubRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 3,
+  },
   txCode: {
     fontSize: 11,
-    color: Colors.textMuted,
+    color: Colors.textSecondary,
     fontFamily: 'monospace',
-    marginTop: 1,
+  },
+  txDot: {
+    fontSize: 11,
+    color: Colors.textMuted,
+    marginHorizontal: 5,
   },
   txDate: {
     fontSize: 11,
-    color: Colors.textSecondary,
-    marginTop: 2,
+    color: Colors.textMuted,
+    fontVariant: ['tabular-nums'],
   },
-  txAmountBox: {
+  txAmountCol: {
     alignItems: 'flex-end',
   },
   txAmount: {

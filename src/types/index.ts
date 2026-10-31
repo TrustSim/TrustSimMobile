@@ -419,3 +419,27 @@ export interface SimTransferConfirmResultDto {
   completedAt?: string;
   message?: string;
 }
+
+
+// Dispute & Evidence Types
+export type DisputeStatus = 'OPEN' | 'IN_REVIEW' | 'RESOLVED_REFUND_BUYER' | 'RESOLVED_PAY_SELLER' | 'REJECTED' | string;
+
+export interface DisputeTicketDto {
+  id: string;
+  tradeTransactionId: string;
+  tradeTransactionCode?: string;
+  simPhoneNumber?: string;
+  complainantId: string;
+  complainantName: string;
+  reason: string;
+  status: DisputeStatus;
+  resolvedByAdminId?: string | null;
+  adminResolutionNotes?: string | null;
+  createdDate: string;
+  evidenceUrls?: string[];
+}
+
+export interface CreateDisputeRequestDto {
+  tradeTransactionId: string;
+  reason: string;
+}

@@ -7,16 +7,14 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Colors } from '../constants/theme';
 import { AuthProvider } from '../context/AuthContext';
 
-SplashScreen.preventAutoHideAsync().catch(() => {});
+SplashScreen.preventAutoHideAsync().catch(() => { });
 
 export default function RootLayout() {
   useEffect(() => {
-    // Default lock to portrait orientation on app start
-    ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
+    ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => { });
 
-    // Hide splash screen after initialization
     const timer = setTimeout(() => {
-      SplashScreen.hideAsync().catch(() => {});
+      SplashScreen.hideAsync().catch(() => { });
     }, 500);
     return () => clearTimeout(timer);
   }, []);
@@ -51,6 +49,7 @@ export default function RootLayout() {
           <Stack.Screen name="sims/register" options={{ headerShown: false }} />
           <Stack.Screen name="contract/[tradeId]" options={{ headerShown: false }} />
           <Stack.Screen name="handover/[tradeId]" options={{ headerShown: false }} />
+          <Stack.Screen name="dispute/[tradeId]" options={{ headerShown: false }} />
         </Stack>
       </AuthProvider>
     </SafeAreaProvider>
