@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View, ViewStyle } from 'react-native';
+import { StyleSheet, TouchableOpacity, View, ViewStyle } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -25,8 +25,8 @@ const TABS: TabConfig[] = [
     id: 'home',
     label: 'Tổng quan',
     route: '/(tabs)',
-    iconActive: 'view-dashboard',
-    iconInactive: 'view-dashboard-outline',
+    iconActive: 'home',
+    iconInactive: 'home-outline',
   },
   {
     id: 'sims',
@@ -39,8 +39,8 @@ const TABS: TabConfig[] = [
     id: 'contracts',
     label: 'Bằng chứng',
     route: '/(tabs)/contracts',
-    iconActive: 'camera-document',
-    iconInactive: 'camera-document',
+    iconActive: 'file-document',
+    iconInactive: 'file-document-outline',
   },
   {
     id: 'wallet',
@@ -53,8 +53,8 @@ const TABS: TabConfig[] = [
     id: 'account',
     label: 'Định danh',
     route: '/(tabs)/account',
-    iconActive: 'shield-account',
-    iconInactive: 'shield-account-outline',
+    iconActive: 'account',
+    iconInactive: 'account-outline',
   },
 ];
 
@@ -64,8 +64,7 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
 }) => {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const bottomInset = Math.max(insets.bottom, 10);
-  const tabHeight = 64 + bottomInset;
+  const bottomOffset = Math.max(insets.bottom, 12) + 6;
 
   const handleTabPress = (route: string) => {
     router.replace(route as any);
@@ -74,10 +73,9 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
   return (
     <View
       style={[
-        styles.container,
+        styles.floatingContainer,
         {
-          height: tabHeight,
-          paddingBottom: bottomInset,
+          bottom: bottomOffset,
         },
         style,
       ]}
@@ -86,31 +84,24 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
         {TABS.map((tab) => {
           const isActive = activeTab === tab.id;
           const iconName = isActive ? tab.iconActive : tab.iconInactive;
-          const tintColor = isActive ? Colors.navy : Colors.textMuted;
 
           return (
             <TouchableOpacity
               key={tab.id}
               style={styles.tabButton}
               onPress={() => handleTabPress(tab.route)}
-              activeOpacity={0.75}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              activeOpacity={0.8}
               accessibilityRole="tab"
               accessibilityState={{ selected: isActive }}
               accessibilityLabel={tab.label}
             >
               <View style={[styles.iconPill, isActive && styles.iconPillActive]}>
-                <MaterialCommunityIcons name={iconName} size={21} color={tintColor} />
+                <MaterialCommunityIcons
+                  name={iconName}
+                  size={22}
+                  color={isActive ? '#FFFFFF' : Colors.textMuted}
+                />
               </View>
-              <Text
-                style={[
-                  styles.tabLabel,
-                  { color: tintColor, fontWeight: isActive ? '800' : '600' },
-                ]}
-                numberOfLines={1}
-              >
-                {tab.label}
-              </Text>
             </TouchableOpacity>
           );
         })}
@@ -120,37 +111,49 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
 };
 
 const styles = StyleSheet.create({
-  container: {
-    backgroundColor: Colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: Colors.borderLight,
-    paddingTop: 6,
-    ...Shadows.md,
+  floatingContainer: {
+    position: 'absolute',
+    left: 20,
+    right: 20,
+    height: 64,
+    borderRadius: BorderRadius.full,
+    backgroundColor: 'rgba(255, 255, 255, 0.98)',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 23, 67, 0.08)',
+    shadowColor: '#001743',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 20,
+    elevation: 12,
+    justifyContent: 'center',
+    zIndex: 99,
   },
   innerRow: {
     flex: 1,
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'center',
+    paddingHorizontal: 8,
   },
   tabButton: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 2,
+    height: 64,
   },
   iconPill: {
     width: 44,
-    height: 28,
+    height: 44,
     borderRadius: BorderRadius.full,
     alignItems: 'center',
     justifyContent: 'center',
   },
   iconPillActive: {
-    backgroundColor: '#E8EFFD',
-  },
-  tabLabel: {
-    fontSize: 10.5,
-    letterSpacing: -0.1,
+    backgroundColor: Colors.navy,
+    shadowColor: Colors.navy,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
   },
 });

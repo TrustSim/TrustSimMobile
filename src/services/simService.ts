@@ -100,4 +100,16 @@ export const simService = {
     });
     return res.data;
   },
+
+  // Update SIM price and details
+  async updateSim(
+    id: string,
+    payload: { price?: number; formatRhythmId?: string; categoryIds?: string[] }
+  ): Promise<ApiResponse<any>> {
+    const res = await apiClient.put<ApiResponse<any>>(`/sims/${id}`, {
+      id,
+      ...payload,
+    });
+    return res.data;
+  },
 };

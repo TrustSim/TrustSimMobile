@@ -1,10 +1,12 @@
 import React, { useCallback, useState } from 'react';
 import {
   Alert,
+  Dimensions,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -22,12 +24,50 @@ import { contractService } from '../../services/contractService';
 import { simService } from '../../services/simService';
 import type { TradeTransactionDto } from '../../types';
 
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+// Sample VIP SIMs for the "Featured Artwork / VIP SIMs" carousel (Image 2 style)
+const FEATURED_VIP_SIMS = [
+  {
+    id: 'vip-1',
+    phoneNumber: '0988.888.888',
+    rhythm: 'Bát Quý 8 Cực Phẩm',
+    carrier: 'Viettel 5G',
+    currentBid: '850.000.000 ₫',
+    endingIn: '6h 32m 23s',
+    gradientColors: ['#001743', '#0B2A6B'],
+    verified: true,
+  },
+  {
+    id: 'vip-2',
+    phoneNumber: '0909.666.999',
+    rhythm: 'Lộc Phát Thần Tài',
+    carrier: 'MobiFone VIP',
+    currentBid: '265.000.000 ₫',
+    endingIn: '12h 15m 08s',
+    gradientColors: ['#0B1630', '#1E293B'],
+    verified: true,
+  },
+  {
+    id: 'vip-3',
+    phoneNumber: '0912.345.678',
+    rhythm: 'Sảnh Tiến Đại Gia',
+    carrier: 'VinaPhone VIP',
+    currentBid: '420.000.000 ₫',
+    endingIn: '1 ngày 4h',
+    gradientColors: ['#001743', '#1D4ED8'],
+    verified: true,
+  },
+];
+
 export default function HomeScreen() {
   const router = useRouter();
   const { user, profile, wallet, escrowBalance, refreshWallet, refreshProfile } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
   const [activeTrades, setActiveTrades] = useState<TradeTransactionDto[]>([]);
   const [verifiedSimCount, setVerifiedSimCount] = useState<number>(0);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [savedSims, setSavedSims] = useState<Record<string, boolean>>({});
 
   const fetchDashboardData = useCallback(async () => {
     try {
@@ -120,6 +160,10 @@ export default function HomeScreen() {
     }
   };
 
+  const toggleSaveSim = (id: string) => {
+    setSavedSims((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
   const quickActions = [
     {
       key: 'deposit',
@@ -161,7 +205,7 @@ export default function HomeScreen() {
       key: 'register-sim',
       label: 'Khai báo SIM',
       sub: 'Thêm thuê bao',
-      icon: 'sim-alert-outline' as const,
+      icon: 'plus-circle-outline' as const,
       color: Colors.navy,
       bgColor: '#F1F5F9',
       onPress: handleRegisterSim,
@@ -171,26 +215,26 @@ export default function HomeScreen() {
       label: 'Định danh',
       sub: isVerified ? 'Đã xác minh' : 'Chụp CCCD',
       icon: 'card-account-details-outline' as const,
-      color: isVerified ? Colors.success : '#E11D48',
-      bgColor: isVerified ? Colors.successLight : '#FFF1F2',
+      color: isVerified ? Colors.success : '#4C5FD5',
+      bgColor: isVerified ? Colors.successLight : '#EEF2FF',
       onPress: () => router.push(isVerified ? '/(tabs)/account' : '/kyc'),
     },
     {
-      key: 'kyc-history',
-      label: 'Lịch sử eKYC',
-      sub: 'Hồ sơ duyệt',
-      icon: 'history' as const,
-      color: '#1D4ED8',
-      bgColor: '#EFF6FF',
-      onPress: () => router.push('/(tabs)/account'),
+      key: 'sim-vault',
+      label: 'Kho SIM',
+      sub: `${verifiedSimCount} thuê bao`,
+      icon: 'sim' as const,
+      color: Colors.indigo,
+      bgColor: '#EEF2FF',
+      onPress: () => router.push('/(tabs)/sims'),
     },
     {
       key: 'handover',
-      label: 'Chuyển nhượng',
-      sub: 'Ký OTP & BC',
+      label: 'Ký bàn giao',
+      sub: 'OTP & Bằng chứng',
       icon: 'camera-document' as const,
-      color: '#E4011E',
-      bgColor: '#FFF1F2',
+      color: Colors.navy,
+      bgColor: '#F1F5F9',
       onPress: handleCaptureHandover,
     },
   ];
@@ -206,34 +250,161 @@ export default function HomeScreen() {
         }
         showsVerticalScrollIndicator={false}
       >
-        {/* Header editorial hiện đại */}
-        <View style={styles.topBar}>
-          <View style={styles.userCol}>
-            <View style={styles.brandBadgeRow}>
-              <View style={styles.brandLiveDot} />
-              <Text style={styles.brandSubText}>TrustSim Vault</Text>
+        {/* ─── 1. TOP BRAND ROW (Image 2 Style) ─── */}
+        <View style={styles.topBrandRow}>
+          <View style={styles.brandTitleCol}>
+            <View style={styles.brandLogoRow}>
+              <View style={styles.brandEmblemBox}>
+                <MaterialCommunityIcons name="shield-check" size={18} color="#FFFFFF" />
+              </View>
+              <Text style={styles.brandTitleText}>TrustSim</Text>
+              <View style={styles.vaultBadgePill}>
+                <Text style={styles.vaultBadgeText}>VAULT</Text>
+              </View>
             </View>
-            <Text style={styles.userName} numberOfLines={1}>
-              Xin chào, {displayName}
+            <Text style={styles.greetingSubText}>
+              Xin chào, <Text style={styles.greetingName}>{displayName}</Text>
             </Text>
           </View>
-          <TouchableOpacity onPress={() => router.push('/(tabs)/account')} activeOpacity={0.8}>
-            <VerificationStatusBadge
-              status={isVerified ? 'verified' : isPendingKyc ? 'pending' : 'not_submitted'}
-              label={
-                isVerified
-                  ? 'Đã định danh'
-                  : isPendingKyc
-                  ? 'Chờ duyệt'
-                  : 'Chưa eKYC'
-              }
-            />
+
+          {/* Right Action Icons (Wallet & Bell Pills - Image 2) */}
+          <View style={styles.topActionsRow}>
+            <TouchableOpacity
+              style={styles.topIconPill}
+              onPress={() => router.push('/(tabs)/wallet')}
+              activeOpacity={0.8}
+              accessibilityLabel="Mở ví tiền"
+            >
+              <MaterialCommunityIcons name="wallet-outline" size={20} color={Colors.navy} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.topIconPill}
+              onPress={() => router.push('/(tabs)/account')}
+              activeOpacity={0.8}
+              accessibilityLabel="Thông báo"
+            >
+              <MaterialCommunityIcons name="bell-outline" size={20} color={Colors.navy} />
+              <View style={styles.notificationDot} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* ─── 2. SEARCH PILL (Image 2 Style) ─── */}
+        <View style={styles.searchPillContainer}>
+          <MaterialCommunityIcons name="magnify" size={22} color={Colors.textMuted} style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Tìm kiếm SIM tứ quý, lộc phát, phong thủy..."
+            placeholderTextColor={Colors.textMuted}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <MaterialCommunityIcons name="close-circle" size={18} color={Colors.textMuted} />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* ─── 3. FEATURED VIP SIM CARDS CAROUSEL (Image 2 "Most Popular Artwork" Style) ─── */}
+        <View style={styles.sectionHeaderRow}>
+          <View>
+            <Text style={styles.sectionTitle}>SIM Nổi Bật & Đấu Giá Trực Tiếp</Text>
+            <Text style={styles.sectionSub}>Bảo chứng quyền sở hữu chính chủ 100%</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.moreOptionsBtn}
+            onPress={() => router.push('/(tabs)/sims')}
+            activeOpacity={0.8}
+          >
+            <MaterialCommunityIcons name="dots-horizontal" size={22} color={Colors.textSecondary} />
           </TouchableOpacity>
         </View>
 
-        {/* Hero Vault Card (Deep Royal Navy #001743 + Glass Sub-cards) */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.featuredCarouselContent}
+          decelerationRate="fast"
+          snapToInterval={SCREEN_WIDTH * 0.78 + 14}
+        >
+          {FEATURED_VIP_SIMS.map((sim) => {
+            const isSaved = !!savedSims[sim.id];
+            return (
+              <View key={sim.id} style={styles.vipSimCard}>
+                {/* Visual Backdrop (Deep Royal Navy) */}
+                <View style={styles.vipCardBackdrop}>
+                  {/* Glowing decorative rings */}
+                  <View style={styles.vipGlowCircle} />
+
+                  {/* Top floating tags (Artwork pill & Heart pill - Image 2) */}
+                  <View style={styles.vipCardTopRow}>
+                    <View style={styles.vipRhythmBadge}>
+                      <MaterialCommunityIcons name="star-four-points" size={12} color="#F59E0B" />
+                      <Text style={styles.vipRhythmBadgeText}>{sim.rhythm}</Text>
+                    </View>
+
+                    <TouchableOpacity
+                      style={[styles.vipHeartPill, isSaved && styles.vipHeartPillActive]}
+                      onPress={() => toggleSaveSim(sim.id)}
+                      activeOpacity={0.85}
+                    >
+                      <MaterialCommunityIcons
+                        name={isSaved ? 'heart' : 'heart-outline'}
+                        size={17}
+                        color={isSaved ? '#EF4444' : '#FFFFFF'}
+                      />
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Middle: Golden Microchip & Big Display Number */}
+                  <View style={styles.vipCardCenter}>
+                    <View style={styles.goldMicrochipPlate}>
+                      <View style={styles.chipGridH} />
+                      <View style={styles.chipGridV} />
+                      <MaterialCommunityIcons name="integrated-circuit-chip" size={22} color="#92400E" />
+                    </View>
+
+                    <Text style={styles.vipPhoneNumber} numberOfLines={1}>
+                      {sim.phoneNumber}
+                    </Text>
+
+                    <View style={styles.vipCarrierRow}>
+                      <View style={styles.carrierDot} />
+                      <Text style={styles.vipCarrierText}>{sim.carrier}</Text>
+                      <Text style={styles.vipDotDivider}>•</Text>
+                      <Text style={styles.vipVerifiedText}>Đã đối soát OTP</Text>
+                    </View>
+                  </View>
+
+                  {/* Bottom Glassmorphic Overlay Panel (Exact match to Image 2 footer) */}
+                  <View style={styles.vipGlassFooter}>
+                    <View style={styles.glassFooterCol}>
+                      <Text style={styles.glassFooterLabel}>Giá khởi điểm / Bid</Text>
+                      <Text style={styles.glassFooterValue} numberOfLines={1}>
+                        {sim.currentBid}
+                      </Text>
+                    </View>
+
+                    <View style={styles.glassFooterDivider} />
+
+                    <View style={styles.glassFooterColRight}>
+                      <Text style={styles.glassFooterLabel}>Thời gian còn</Text>
+                      <View style={styles.timerRow}>
+                        <MaterialCommunityIcons name="clock-outline" size={13} color="#CBD5E1" />
+                        <Text style={styles.glassFooterTimer}>{sim.endingIn}</Text>
+                      </View>
+                    </View>
+                  </View>
+                </View>
+              </View>
+            );
+          })}
+        </ScrollView>
+
+        {/* ─── 4. HERO VAULT BALANCE CARD (Deep Royal Navy #001743) ─── */}
         <View style={styles.heroVaultCard}>
-          <View style={styles.heroGlowCircle} />
           <View style={styles.heroTopRow}>
             <View style={styles.balancePrimaryCol}>
               <Text style={styles.heroBalanceLabel}>Số dư ví khả dụng</Text>
@@ -247,18 +418,18 @@ export default function HomeScreen() {
                 <Text style={styles.heroCurrencyUnit}>₫</Text>
               </Text>
             </View>
+
             <TouchableOpacity
               style={styles.heroHistoryPill}
               onPress={() => router.push('/transactions')}
               activeOpacity={0.8}
             >
-              <MaterialCommunityIcons name="history" size={14} color="#E2E8F0" />
+              <MaterialCommunityIcons name="history" size={15} color="#E2E8F0" />
               <Text style={styles.heroHistoryText}>Sao kê</Text>
-              <MaterialCommunityIcons name="chevron-right" size={15} color="#94A3B8" />
             </TouchableOpacity>
           </View>
 
-          {/* 2 Glass Cards: Tiền ký quỹ & Tiền cọc đấu giá */}
+          {/* 2 Glass Sub-Cards: Tiền ký quỹ & Tiền cọc đấu giá */}
           <View style={styles.glassGrid}>
             <TouchableOpacity
               style={styles.glassSubCard}
@@ -277,7 +448,7 @@ export default function HomeScreen() {
               >
                 {escrowBal.toLocaleString('vi-VN')} ₫
               </Text>
-              <Text style={styles.glassHint}>Bảo chứng hợp đồng SIM</Text>
+              <Text style={styles.glassHint}>Bảo chứng giao dịch</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -301,7 +472,7 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Nút Nạp tiền & Rút tiền nổi bật */}
+          {/* Nút Nạp tiền & Rút tiền Pill Actions (Soft-Cloud Navy tokens) */}
           <View style={styles.heroActionRow}>
             <TouchableOpacity
               style={styles.heroDepositBtn}
@@ -327,11 +498,11 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* Tiện ích nhanh (Bento Grid hiện đại) */}
+        {/* ─── 5. QUICK ACTIONS BENTO GRID ─── */}
         <View style={styles.sectionHeaderRow}>
           <Text style={styles.sectionTitle}>Tiện ích nhanh</Text>
           <TouchableOpacity onPress={() => router.push('/(tabs)/wallet')}>
-            <Text style={styles.sectionLink}>Mở Ví tiền →</Text>
+            <Text style={styles.sectionLink}>Mở ví tiền →</Text>
           </TouchableOpacity>
         </View>
 
@@ -358,7 +529,7 @@ export default function HomeScreen() {
           ))}
         </View>
 
-        {/* Danh sách Hợp đồng & Chuyển nhượng SIM đang xử lý (Auction Live Deal Cards) */}
+        {/* ─── 6. ACTIVE DEALS & CONTRACTS SECTION ─── */}
         <View style={styles.sectionHeaderRow}>
           <View style={styles.sectionTitleWithCount}>
             <Text style={styles.sectionTitle}>Giao dịch & Hợp đồng SIM</Text>
@@ -376,11 +547,7 @@ export default function HomeScreen() {
         {activeTrades.length === 0 ? (
           <View style={styles.emptyDealCard}>
             <View style={styles.emptyDealIconCircle}>
-              <MaterialCommunityIcons
-                name="shield-check-outline"
-                size={26}
-                color={Colors.blue}
-              />
+              <MaterialCommunityIcons name="shield-check-outline" size={26} color={Colors.indigo} />
             </View>
             <Text style={styles.emptyDealTitle}>Chưa có hợp đồng chờ ký hoặc bàn giao</Text>
             <Text style={styles.emptyDealSub}>
@@ -436,7 +603,7 @@ export default function HomeScreen() {
                     />
                   </TouchableOpacity>
 
-                  {/* Nút hành động thông minh theo đúng bước */}
+                  {/* Nút hành động chuẩn Soft-Cloud Navy (Pill shapes) */}
                   <View style={styles.dealActionRow}>
                     {awaitingSign ? (
                       <TouchableOpacity
@@ -491,7 +658,7 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {/* Trung tâm bảo chứng & Xác thực 3 bước */}
+        {/* ─── 7. TRUNG TÂM BẢO CHỨNG TÀI SẢN ─── */}
         <View style={[styles.sectionHeaderRow, { marginTop: Spacing.xl }]}>
           <Text style={styles.sectionTitle}>Trung tâm bảo chứng tài sản</Text>
         </View>
@@ -506,13 +673,13 @@ export default function HomeScreen() {
             <View
               style={[
                 styles.trustIconWrap,
-                { backgroundColor: isVerified ? Colors.successLight : '#EFF6FF' },
+                { backgroundColor: isVerified ? Colors.successLight : '#EEF2FF' },
               ]}
             >
               <MaterialCommunityIcons
                 name="card-account-details-outline"
                 size={22}
-                color={isVerified ? Colors.success : Colors.blue}
+                color={isVerified ? Colors.success : Colors.indigo}
               />
             </View>
             <View style={styles.trustBody}>
@@ -552,11 +719,11 @@ export default function HomeScreen() {
             onPress={handleCaptureHandover}
             activeOpacity={0.8}
           >
-            <View style={[styles.trustIconWrap, { backgroundColor: Colors.crimsonSoft }]}>
+            <View style={[styles.trustIconWrap, { backgroundColor: '#F1F5F9' }]}>
               <MaterialCommunityIcons
                 name="camera-document"
                 size={22}
-                color={Colors.crimson}
+                color={Colors.navy}
               />
             </View>
             <View style={styles.trustBody}>
@@ -581,59 +748,299 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.md,
-    paddingBottom: Spacing.xxxl,
+    paddingBottom: 110, // Generous padding to clear the floating bottom navigation bar
   },
-  topBar: {
+
+  // 1. Top Brand Row (Image 2 style)
+  topBrandRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: Spacing.lg,
-    gap: Spacing.sm,
+    marginBottom: Spacing.md,
   },
-  userCol: {
+  brandTitleCol: {
     flex: 1,
   },
-  brandBadgeRow: {
+  brandLogoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    marginBottom: 3,
+    gap: 8,
   },
-  brandLiveDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 99,
-    backgroundColor: Colors.crimson,
+  brandEmblemBox: {
+    width: 28,
+    height: 28,
+    borderRadius: 9,
+    backgroundColor: Colors.navy,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadows.sm,
   },
-  brandSubText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.textSecondary,
-    letterSpacing: -0.1,
-  },
-  userName: {
-    fontSize: 22,
-    fontWeight: '800',
+  brandTitleText: {
+    fontSize: 20,
+    fontWeight: '900',
     color: Colors.navy,
     letterSpacing: -0.5,
   },
+  vaultBadgePill: {
+    backgroundColor: 'rgba(76, 95, 213, 0.12)',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.full,
+  },
+  vaultBadgeText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: Colors.indigo,
+    letterSpacing: 0.5,
+  },
+  greetingSubText: {
+    fontSize: 12.5,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  greetingName: {
+    fontWeight: '700',
+    color: Colors.navy,
+  },
+  topActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  topIconPill: {
+    width: 42,
+    height: 42,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    ...Shadows.sm,
+  },
+  notificationDot: {
+    position: 'absolute',
+    top: 9,
+    right: 9,
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: '#EF4444',
+  },
+
+  // 2. Search Pill (Image 2 style)
+  searchPillContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: 16,
+    height: 48,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    marginBottom: Spacing.lg,
+    ...Shadows.sm,
+  },
+  searchIcon: {
+    marginRight: 10,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 13.5,
+    color: Colors.text,
+    paddingVertical: 0,
+  },
+
+  // 3. Featured VIP SIMs Carousel (Image 2 style)
+  featuredCarouselContent: {
+    paddingRight: Spacing.lg,
+    gap: 14,
+    marginBottom: Spacing.xl,
+  },
+  vipSimCard: {
+    width: SCREEN_WIDTH * 0.78,
+    borderRadius: 28,
+    overflow: 'hidden',
+    backgroundColor: Colors.navy,
+    ...Shadows.lg,
+  },
+  vipCardBackdrop: {
+    padding: 18,
+    minHeight: 220,
+    justifyContent: 'space-between',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  vipGlowCircle: {
+    position: 'absolute',
+    top: -40,
+    right: -40,
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: 'rgba(76, 95, 213, 0.28)',
+  },
+  vipCardTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    zIndex: 2,
+  },
+  vipRhythmBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.22)',
+    paddingHorizontal: 11,
+    paddingVertical: 5,
+    borderRadius: BorderRadius.full,
+  },
+  vipRhythmBadgeText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  vipHeartPill: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.14)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  vipHeartPillActive: {
+    backgroundColor: 'rgba(239, 68, 68, 0.25)',
+  },
+  vipCardCenter: {
+    marginVertical: 14,
+    alignItems: 'flex-start',
+    zIndex: 2,
+  },
+  goldMicrochipPlate: {
+    width: 38,
+    height: 30,
+    borderRadius: 6,
+    backgroundColor: '#FDE68A',
+    borderWidth: 1.5,
+    borderColor: '#D97706',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  chipGridH: {
+    position: 'absolute',
+    top: 14,
+    left: 0,
+    right: 0,
+    height: 1,
+    backgroundColor: '#B45309',
+    opacity: 0.4,
+  },
+  chipGridV: {
+    position: 'absolute',
+    left: 18,
+    top: 0,
+    bottom: 0,
+    width: 1,
+    backgroundColor: '#B45309',
+    opacity: 0.4,
+  },
+  vipPhoneNumber: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    fontVariant: ['tabular-nums'],
+    letterSpacing: -0.5,
+  },
+  vipCarrierRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 4,
+  },
+  carrierDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#34D399',
+  },
+  vipCarrierText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#CBD5E1',
+  },
+  vipDotDivider: {
+    fontSize: 12,
+    color: '#64748B',
+  },
+  vipVerifiedText: {
+    fontSize: 11.5,
+    color: '#94A3B8',
+  },
+
+  // Glass Footer on VIP SIM Card (Image 2 style)
+  vipGlassFooter: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    alignItems: 'center',
+    zIndex: 2,
+  },
+  glassFooterCol: {
+    flex: 1,
+  },
+  glassFooterColRight: {
+    flex: 1,
+    alignItems: 'flex-end',
+  },
+  glassFooterDivider: {
+    width: 1,
+    height: 24,
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    marginHorizontal: 8,
+  },
+  glassFooterLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#94A3B8',
+    marginBottom: 2,
+  },
+  glassFooterValue: {
+    fontSize: 13.5,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    fontVariant: ['tabular-nums'],
+  },
+  timerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  glassFooterTimer: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#E2E8F0',
+    fontVariant: ['tabular-nums'],
+  },
+
+  // 4. Hero Vault Balance Card
   heroVaultCard: {
     backgroundColor: Colors.navy,
-    borderRadius: BorderRadius.xl,
+    borderRadius: 28,
     padding: Spacing.xl,
     marginBottom: Spacing.xl,
     overflow: 'hidden',
     position: 'relative',
     ...Shadows.lg,
-  },
-  heroGlowCircle: {
-    position: 'absolute',
-    top: -60,
-    right: -40,
-    width: 190,
-    height: 190,
-    borderRadius: 95,
-    backgroundColor: 'rgba(29, 78, 216, 0.28)',
   },
   heroTopRow: {
     flexDirection: 'row',
@@ -651,7 +1058,7 @@ const styles = StyleSheet.create({
   },
   heroPrimaryBalance: {
     fontSize: 32,
-    fontWeight: '800',
+    fontWeight: '900',
     color: '#FFFFFF',
     fontVariant: ['tabular-nums'],
     marginTop: 4,
@@ -665,13 +1072,13 @@ const styles = StyleSheet.create({
   heroHistoryPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 5,
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.15)',
     borderRadius: BorderRadius.full,
-    paddingHorizontal: 11,
-    paddingVertical: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
   },
   heroHistoryText: {
     fontSize: 12,
@@ -685,10 +1092,10 @@ const styles = StyleSheet.create({
   },
   glassSubCard: {
     flex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.07)',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.13)',
-    borderRadius: BorderRadius.md,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: 18,
     padding: Spacing.md,
   },
   glassTagRow: {
@@ -728,9 +1135,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    backgroundColor: Colors.crimson,
-    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.indigo,
+    borderRadius: BorderRadius.full,
     minHeight: 46,
+    ...Shadows.sm,
   },
   heroDepositBtnText: {
     fontSize: 14,
@@ -746,7 +1154,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.12)',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.22)',
-    borderRadius: BorderRadius.md,
+    borderRadius: BorderRadius.full,
     minHeight: 46,
   },
   heroWithdrawBtnText: {
@@ -754,6 +1162,8 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
   },
+
+  // 5. Section Headers & Quick Actions
   sectionHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -771,8 +1181,16 @@ const styles = StyleSheet.create({
     color: Colors.navy,
     letterSpacing: -0.3,
   },
+  sectionSub: {
+    fontSize: 11.5,
+    color: Colors.textSecondary,
+    marginTop: 1,
+  },
+  moreOptionsBtn: {
+    padding: 4,
+  },
   countPill: {
-    backgroundColor: Colors.crimsonSoft,
+    backgroundColor: 'rgba(76, 95, 213, 0.12)',
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: BorderRadius.full,
@@ -780,12 +1198,12 @@ const styles = StyleSheet.create({
   countPillText: {
     fontSize: 11,
     fontWeight: '800',
-    color: Colors.crimson,
+    color: Colors.indigo,
   },
   sectionLink: {
     fontSize: 13,
     fontWeight: '700',
-    color: Colors.blue,
+    color: Colors.indigo,
   },
   quickActionGrid: {
     flexDirection: 'row',
@@ -797,7 +1215,7 @@ const styles = StyleSheet.create({
     width: '22.5%',
     flexGrow: 1,
     backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.md,
+    borderRadius: 20,
     paddingVertical: 12,
     paddingHorizontal: 6,
     alignItems: 'center',
@@ -822,14 +1240,16 @@ const styles = StyleSheet.create({
     letterSpacing: -0.2,
   },
   quickActionSub: {
-    fontSize: 10,
+    fontSize: 9.5,
     color: Colors.textMuted,
     textAlign: 'center',
     marginTop: 1,
   },
+
+  // 6. Active Deals & Contracts
   emptyDealCard: {
     backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.lg,
+    borderRadius: 24,
     padding: Spacing.xl,
     alignItems: 'center',
     borderWidth: 1,
@@ -840,7 +1260,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: Colors.blueSoft,
+    backgroundColor: '#EEF2FF',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: Spacing.sm,
@@ -863,7 +1283,7 @@ const styles = StyleSheet.create({
   },
   dealCard: {
     backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.lg,
+    borderRadius: 24,
     padding: Spacing.lg,
     borderWidth: 1,
     borderColor: Colors.borderLight,
@@ -907,7 +1327,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surfaceAlt,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: BorderRadius.sm,
+    borderRadius: 12,
   },
   dealEscrowLabel: {
     fontSize: 10,
@@ -917,7 +1337,7 @@ const styles = StyleSheet.create({
   dealEscrowValue: {
     fontSize: 14,
     fontWeight: '800',
-    color: Colors.blue,
+    color: Colors.navy,
     fontVariant: ['tabular-nums'],
     marginTop: 1,
   },
@@ -936,7 +1356,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
     backgroundColor: Colors.navy,
-    borderRadius: BorderRadius.sm,
+    borderRadius: BorderRadius.full,
     minHeight: 44,
     paddingHorizontal: Spacing.md,
   },
@@ -952,7 +1372,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
     backgroundColor: Colors.surfaceMuted,
-    borderRadius: BorderRadius.sm,
+    borderRadius: BorderRadius.full,
     minHeight: 42,
     paddingHorizontal: Spacing.sm,
   },
@@ -967,8 +1387,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    backgroundColor: Colors.blue,
-    borderRadius: BorderRadius.sm,
+    backgroundColor: Colors.indigo,
+    borderRadius: BorderRadius.full,
     minHeight: 42,
     paddingHorizontal: Spacing.sm,
   },
@@ -977,6 +1397,8 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#FFFFFF',
   },
+
+  // 7. Trust Center Stack
   trustCenterStack: {
     gap: Spacing.sm,
   },
@@ -984,7 +1406,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.md,
+    borderRadius: 20,
     padding: Spacing.md,
     gap: Spacing.md,
     borderWidth: 1,

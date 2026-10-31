@@ -8,16 +8,18 @@ import { useAuth } from '../../context/AuthContext';
 
 function TabIconBubble({
   name,
-  color,
   focused,
 }: {
   name: keyof typeof MaterialCommunityIcons.glyphMap;
-  color: string;
   focused: boolean;
 }) {
   return (
     <View style={[styles.iconPill, focused && styles.iconPillActive]}>
-      <MaterialCommunityIcons name={name} size={21} color={focused ? Colors.navy : color} />
+      <MaterialCommunityIcons
+        name={name}
+        size={22}
+        color={focused ? '#FFFFFF' : Colors.textMuted}
+      />
     </View>
   );
 }
@@ -30,29 +32,38 @@ export default function TabLayout() {
     return <Redirect href="/login" />;
   }
 
-  const bottomInset = Math.max(insets.bottom, 10);
-  const tabHeight = 64 + bottomInset;
+  const bottomOffset = Math.max(insets.bottom, 12) + 6;
 
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
+        tabBarShowLabel: false,
         tabBarActiveTintColor: Colors.navy,
         tabBarInactiveTintColor: Colors.textMuted,
         tabBarStyle: {
-          backgroundColor: Colors.surface,
-          borderTopColor: Colors.borderLight,
-          borderTopWidth: 1,
-          height: tabHeight,
-          paddingBottom: bottomInset,
-          paddingTop: 6,
-          ...Shadows.md,
+          position: 'absolute',
+          bottom: bottomOffset,
+          left: 20,
+          right: 20,
+          height: 64,
+          borderRadius: BorderRadius.full,
+          backgroundColor: 'rgba(255, 255, 255, 0.98)',
+          borderWidth: 1,
+          borderColor: 'rgba(0, 23, 67, 0.08)',
+          shadowColor: '#001743',
+          shadowOffset: { width: 0, height: 8 },
+          shadowOpacity: 0.12,
+          shadowRadius: 20,
+          elevation: 12,
+          paddingBottom: 0,
+          paddingTop: 0,
         },
-        tabBarLabelStyle: {
-          fontSize: 10.5,
-          fontWeight: '700',
-          letterSpacing: -0.1,
-          marginTop: 2,
+        tabBarItemStyle: {
+          height: 64,
+          justifyContent: 'center',
+          alignItems: 'center',
+          paddingVertical: 10,
         },
       }}
     >
@@ -60,10 +71,9 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Tổng quan',
-          tabBarIcon: ({ color, focused }) => (
+          tabBarIcon: ({ focused }) => (
             <TabIconBubble
-              name={focused ? 'view-dashboard' : 'view-dashboard-outline'}
-              color={color as string}
+              name={focused ? 'home' : 'home-outline'}
               focused={focused}
             />
           ),
@@ -73,10 +83,9 @@ export default function TabLayout() {
         name="sims"
         options={{
           title: 'Xác thực SIM',
-          tabBarIcon: ({ color, focused }) => (
+          tabBarIcon: ({ focused }) => (
             <TabIconBubble
               name={focused ? 'sim' : 'sim-outline'}
-              color={color as string}
               focused={focused}
             />
           ),
@@ -85,11 +94,10 @@ export default function TabLayout() {
       <Tabs.Screen
         name="contracts"
         options={{
-          title: 'Bằng chứng',
-          tabBarIcon: ({ color, focused }) => (
+          title: 'Hợp đồng bảo chứng',
+          tabBarIcon: ({ focused }) => (
             <TabIconBubble
-              name="camera-document"
-              color={color as string}
+              name={focused ? 'file-document' : 'file-document-outline'}
               focused={focused}
             />
           ),
@@ -99,10 +107,9 @@ export default function TabLayout() {
         name="wallet"
         options={{
           title: 'Ví tiền',
-          tabBarIcon: ({ color, focused }) => (
+          tabBarIcon: ({ focused }) => (
             <TabIconBubble
               name={focused ? 'wallet' : 'wallet-outline'}
-              color={color as string}
               focused={focused}
             />
           ),
@@ -112,10 +119,9 @@ export default function TabLayout() {
         name="account"
         options={{
           title: 'Định danh',
-          tabBarIcon: ({ color, focused }) => (
+          tabBarIcon: ({ focused }) => (
             <TabIconBubble
-              name={focused ? 'shield-account' : 'shield-account-outline'}
-              color={color as string}
+              name={focused ? 'account' : 'account-outline'}
               focused={focused}
             />
           ),
@@ -132,12 +138,17 @@ export default function TabLayout() {
 const styles = StyleSheet.create({
   iconPill: {
     width: 44,
-    height: 28,
+    height: 44,
     borderRadius: BorderRadius.full,
     alignItems: 'center',
     justifyContent: 'center',
   },
   iconPillActive: {
-    backgroundColor: '#E8EFFD',
+    backgroundColor: Colors.navy,
+    shadowColor: Colors.navy,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
   },
 });

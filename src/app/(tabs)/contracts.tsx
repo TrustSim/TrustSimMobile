@@ -461,7 +461,7 @@ const styles = StyleSheet.create({
   scroll: {
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.md,
-    paddingBottom: Spacing.xxxl,
+    paddingBottom: 110, // Floating bottom nav bar allowance
   },
   header: {
     flexDirection: 'row',

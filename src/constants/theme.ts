@@ -16,6 +16,18 @@ export const Colors = {
   goldSoft: '#FFFBEB',
   goldBorder: '#FDE68A',
 
+  // Soft-Cloud Navy design system tokens (TRUSTSIM_DESIGN_SYSTEM.md)
+  navy2: '#0B2A6B',
+  indigo: '#4C5FD5',
+  periwinkle: '#8C9CFF',
+  ink: '#0B1630',
+  cloud1: '#F1F3FF',
+  cloud2: '#DFE5FF',
+  cloud3: '#C7D0FF',
+  chipBg: '#EEF1FF',
+  glass: 'rgba(255, 255, 255, 0.82)',
+  line: 'rgba(0, 23, 67, 0.08)',
+
   // Semantic aliases
   navy: '#001743',
   navyMid: '#0A2558',
@@ -27,7 +39,7 @@ export const Colors = {
   amberLight: '#FEF3C7',
 
   // Backgrounds & Surfaces (Warm-Cool Alabaster & Pure White Cards)
-  background: '#F3F5F9',
+  background: '#F7F8FD',
   surface: '#FFFFFF',
   surfaceElevated: '#FFFFFF',
   surfaceAlt: '#F8FAFC',
@@ -36,10 +48,10 @@ export const Colors = {
 
   // Text Hierarchy
   text: '#09152B',
-  textPrimary: '#09152B',
-  textSecondary: '#475569',
-  textMuted: '#64748B',
-  textLight: '#94A3B8',
+  textPrimary: '#0B1630',
+  textSecondary: '#5B6477',
+  textMuted: '#7A8499',
+  textLight: '#98A1B3',
   textInverse: '#FFFFFF',
 
   // Status & Trust Indicators
@@ -57,9 +69,9 @@ export const Colors = {
   infoBorder: '#BFDBFE',
 
   // Borders & Dividers
-  border: '#E2E8F0',
-  borderLight: '#F1F5F9',
-  divider: '#E2E8F0',
+  border: 'rgba(0, 23, 67, 0.08)',
+  borderLight: 'rgba(0, 23, 67, 0.05)',
+  divider: 'rgba(0, 23, 67, 0.08)',
 
   // Overlays
   overlay: 'rgba(0, 23, 67, 0.55)',
@@ -77,7 +89,7 @@ export const Colors = {
   // Legacy theme hook compatibility
   light: {
     text: '#09152B',
-    background: '#F3F5F9',
+    background: '#F7F8FD',
     tint: '#001743',
     icon: '#475569',
     tabIconDefault: '#64748B',
@@ -122,13 +134,17 @@ export const Spacing = {
 };
 
 export const BorderRadius = {
-  xs: 8,
-  sm: 12,
-  md: 16,
-  lg: 20,
-  xl: 24,
+  xs: 10,
+  sm: 14,
+  md: 20,
+  lg: 24,
+  xl: 30,
+  xxl: 36,
   full: 9999,
 };
+
+/** Chiều cao vùng nav nổi — dùng làm paddingBottom cho ScrollView của các tab. */
+export const FLOATING_NAV_SPACE = 104;
 
 export const Shadows = {
   sm: {
@@ -174,3 +190,4 @@ export const Shadows = {
     elevation: 2,
   },
 };
+

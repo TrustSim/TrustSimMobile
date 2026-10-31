@@ -478,3 +478,32 @@ export interface CreateDisputeRequestDto {
   tradeTransactionId: string;
   reason: string;
 }
+
+// AI Valuation Types
+export interface SimValuationDto {
+  valuationId: string;
+  simNumberId?: string;
+  phoneNumber: string;
+  formattedNumber?: string;
+  suggestedPrice: number;
+  minPrice: number;
+  maxPrice: number;
+  retailPrice?: number;
+  p2pPrice?: number;
+  dealerPrice?: number;
+  totalPoints?: number;
+  prefixGroup?: string;
+  middleGroup?: string;
+  tailGroup?: string;
+  confidenceScore: number;
+  baselinePrice?: number;
+  marketMultiplier?: number;
+  detectedRhythmName?: string;
+  detectedCategories?: string[];
+  valuationReasoning: string;
+  fengShuiAnalysis?: string;
+  aiModelName?: string;
+  appliedToSim?: boolean;
+  createdDate?: string;
+}
+

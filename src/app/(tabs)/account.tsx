@@ -1,9 +1,13 @@
 import React, { useCallback, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
+  Modal,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -16,6 +20,7 @@ import {
   VerificationStatusBadge,
 } from '../../components/trust/VerificationStatusBadge';
 import { useAuth } from '../../context/AuthContext';
+import { authService } from '../../services/authService';
 import { kycService } from '../../services/kycService';
 import { simService } from '../../services/simService';
 import type { KycStatusDto } from '../../types';
@@ -46,6 +51,22 @@ export default function IdentityAccountScreen() {
   const [verifiedSimsCount, setVerifiedSimsCount] = useState(0);
   const [kycData, setKycData] = useState<KycStatusDto | null>(null);
   const [kycHistory, setKycHistory] = useState<KycStatusDto[]>([]);
+
+  // State Chỉnh sửa thông tin cá nhân
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editFullName, setEditFullName] = useState('');
+  const [editPhoneNumber, setEditPhoneNumber] = useState('');
+  const [editAddress, setEditAddress] = useState('');
+  const [editDateOfBirth, setEditDateOfBirth] = useState('');
+  const [savingProfile, setSavingProfile] = useState(false);
+
+  // State Đổi mật khẩu
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPasswordText, setShowPasswordText] = useState(false);
+  const [savingPassword, setSavingPassword] = useState(false);
 
   const loadAccountDetails = useCallback(async () => {
     try {
@@ -99,9 +120,104 @@ export default function IdentityAccountScreen() {
   const isVerified = currentStatus === 'VERIFIED';
   const identityNumber = profile?.identityNumber || kycData?.identityNumber;
 
-  // 3 trụ cột bảo chứng (loại bỏ NFC theo yêu cầu)
   const completedPillars =
     (isVerified ? 1 : 0) + (verifiedSimsCount > 0 ? 1 : 0) + (isVerified ? 1 : 0);
+
+  // Mở modal chỉnh sửa hồ sơ
+  const handleOpenEditProfile = () => {
+    setEditFullName(profile?.fullName || user?.fullName || '');
+    setEditPhoneNumber(profile?.phoneNumber || user?.phoneNumber || '');
+    setEditAddress(profile?.address || '');
+    const dob = profile?.dateOfBirth || kycData?.dateOfBirth;
+    if (dob) {
+      try {
+        const d = new Date(dob);
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        setEditDateOfBirth(`${yyyy}-${mm}-${dd}`);
+      } catch {
+        setEditDateOfBirth(String(dob));
+      }
+    } else {
+      setEditDateOfBirth('');
+    }
+    setShowEditModal(true);
+  };
+
+  // Lưu thông tin cá nhân
+  const handleSaveProfile = async () => {
+    if (!editFullName.trim()) {
+      Alert.alert('Thiếu thông tin', 'Vui lòng nhập họ và tên của bạn.');
+      return;
+    }
+    if (!editPhoneNumber.trim()) {
+      Alert.alert('Thiếu thông tin', 'Vui lòng nhập số điện thoại liên hệ.');
+      return;
+    }
+
+    setSavingProfile(true);
+    try {
+      const res = await authService.updateProfile({
+        fullName: editFullName.trim(),
+        phoneNumber: editPhoneNumber.trim(),
+        address: editAddress.trim(),
+        identityNumber: identityNumber || '', // CCCD giữ nguyên không đổi
+        dateOfBirth: editDateOfBirth.trim() || undefined,
+      });
+
+      if (res.success) {
+        Alert.alert('Thành công', 'Đã cập nhật thông tin cá nhân thành công.');
+        setShowEditModal(false);
+        await refreshProfile();
+      } else {
+        Alert.alert('Không thể lưu', res.message || 'Cập nhật thất bại. Vui lòng thử lại.');
+      }
+    } catch (err: any) {
+      Alert.alert('Lỗi', err.message || 'Cập nhật thất bại. Vui lòng kiểm tra lại đường truyền.');
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
+  // Lưu đổi mật khẩu
+  const handleSavePassword = async () => {
+    if (!currentPassword) {
+      Alert.alert('Thiếu thông tin', 'Vui lòng nhập mật khẩu hiện tại.');
+      return;
+    }
+    if (!newPassword || newPassword.length < 6) {
+      Alert.alert('Mật khẩu yếu', 'Mật khẩu mới phải có ít nhất 6 ký tự.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      Alert.alert('Không trùng khớp', 'Mật khẩu mới và xác nhận mật khẩu không khớp nhau.');
+      return;
+    }
+
+    setSavingPassword(true);
+    try {
+      const res = await authService.changePassword({
+        currentPassword,
+        newPassword,
+        confirmNewPassword: confirmPassword,
+      });
+
+      if (res.success) {
+        Alert.alert('Thành công', 'Đã đổi mật khẩu tài khoản thành công!');
+        setShowPasswordModal(false);
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+      } else {
+        Alert.alert('Không thành công', res.message || 'Mật khẩu hiện tại không chính xác.');
+      }
+    } catch (err: any) {
+      Alert.alert('Lỗi', err.message || 'Đổi mật khẩu thất bại. Vui lòng thử lại.');
+    } finally {
+      setSavingPassword(false);
+    }
+  };
 
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
@@ -162,7 +278,7 @@ export default function IdentityAccountScreen() {
             </View>
           ) : null}
 
-          {/* Action CTA if not yet verified (loại bỏ NFC, chỉ chụp CCCD) */}
+          {/* Action CTA if not yet verified */}
           {!isVerified && (
             <View style={styles.passportCtaRow}>
               <TouchableOpacity
@@ -181,7 +297,40 @@ export default function IdentityAccountScreen() {
           )}
         </View>
 
-        {/* 3 Trụ cột Xác thực (Đã loại bỏ NFC) */}
+        {/* Cụm Nút Tác Vụ Cá Nhân (Sửa thông tin & Đổi mật khẩu) */}
+        <View style={styles.actionPillGrid}>
+          <TouchableOpacity
+            style={styles.actionPillBtn}
+            onPress={handleOpenEditProfile}
+            activeOpacity={0.82}
+          >
+            <View style={[styles.actionPillIconCircle, { backgroundColor: '#EFF6FF' }]}>
+              <MaterialCommunityIcons name="account-edit-outline" size={20} color={Colors.blue} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.actionPillTitle}>Chỉnh sửa thông tin</Text>
+              <Text style={styles.actionPillSub}>Cập nhật họ tên, SĐT, nơi ở</Text>
+            </View>
+            <MaterialCommunityIcons name="chevron-right" size={18} color={Colors.textMuted} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.actionPillBtn}
+            onPress={() => setShowPasswordModal(true)}
+            activeOpacity={0.82}
+          >
+            <View style={[styles.actionPillIconCircle, { backgroundColor: '#FEF3C7' }]}>
+              <MaterialCommunityIcons name="lock-reset" size={20} color={Colors.gold} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.actionPillTitle}>Đổi mật khẩu</Text>
+              <Text style={styles.actionPillSub}>Bảo mật & đăng nhập</Text>
+            </View>
+            <MaterialCommunityIcons name="chevron-right" size={18} color={Colors.textMuted} />
+          </TouchableOpacity>
+        </View>
+
+        {/* 3 Trụ cột Xác thực */}
         <View style={styles.sectionHeaderRow}>
           <Text style={styles.sectionTitle}>3 Lớp bảo chứng giao dịch</Text>
         </View>
@@ -217,8 +366,8 @@ export default function IdentityAccountScreen() {
                 isVerified
                   ? 'Đã xác minh'
                   : currentStatus === 'PENDING_VERIFICATION'
-                  ? 'Chờ duyệt'
-                  : 'Thực hiện'
+                    ? 'Chờ duyệt'
+                    : 'Thực hiện'
               }
               size="sm"
             />
@@ -335,21 +484,21 @@ export default function IdentityAccountScreen() {
               const status = item.verificationStatus;
               const dateStr = item.submittedAt
                 ? new Date(item.submittedAt).toLocaleDateString('vi-VN', {
-                    day: '2-digit',
-                    month: '2-digit',
-                    year: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })
+                  day: '2-digit',
+                  month: '2-digit',
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })
                 : '—';
               const verifiedDateStr = item.verifiedAt
                 ? new Date(item.verifiedAt).toLocaleDateString('vi-VN', {
-                    day: '2-digit',
-                    month: '2-digit',
-                    year: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })
+                  day: '2-digit',
+                  month: '2-digit',
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })
                 : null;
               const badge = getKycBadge(status);
               const isMatchScore =
@@ -436,18 +585,37 @@ export default function IdentityAccountScreen() {
         {/* Thông tin hồ sơ trích xuất từ CCCD */}
         <View style={[styles.sectionHeaderRow, { marginTop: Spacing.xl }]}>
           <Text style={styles.sectionTitle}>Dữ liệu căn cước đã lưu</Text>
+          <TouchableOpacity
+            style={styles.editHeaderBtn}
+            onPress={handleOpenEditProfile}
+            activeOpacity={0.75}
+          >
+            <MaterialCommunityIcons name="pencil-outline" size={14} color={Colors.blue} />
+            <Text style={styles.editHeaderText}>Chỉnh sửa</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.recordCard}>
           <View style={styles.recordRow}>
-            <Text style={styles.recordLabel}>Số CCCD / Định danh</Text>
-            <Text style={[styles.recordVal, styles.monoVal]}>
-              {maskIdCard(identityNumber)}
-            </Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.recordLabel}>Số CCCD / Mã định danh</Text>
+              <Text style={styles.lockedNote}>Cố định từ eKYC chính chủ (Không cho sửa)</Text>
+            </View>
+            <View style={styles.lockedValBox}>
+              <MaterialCommunityIcons name="lock" size={14} color={Colors.textMuted} />
+              <Text style={[styles.recordVal, styles.monoVal, { color: Colors.textSecondary }]}>
+                {maskIdCard(identityNumber)}
+              </Text>
+            </View>
           </View>
           <View style={styles.hairline} />
           <View style={styles.recordRow}>
-            <Text style={styles.recordLabel}>Số điện thoại liên hệ</Text>
+            <Text style={styles.recordLabel}>Họ và tên</Text>
+            <Text style={styles.recordVal}>{displayName}</Text>
+          </View>
+          <View style={styles.hairline} />
+          <View style={styles.recordRow}>
+            <Text style={styles.recordLabel}>Số điện thoại</Text>
             <Text style={[styles.recordVal, styles.monoVal]}>
               {profile?.phoneNumber || user?.phoneNumber || 'Chưa cập nhật'}
             </Text>
@@ -458,8 +626,8 @@ export default function IdentityAccountScreen() {
             <Text style={styles.recordVal}>
               {profile?.dateOfBirth || kycData?.dateOfBirth
                 ? new Date(
-                    (profile?.dateOfBirth || kycData?.dateOfBirth) as string
-                  ).toLocaleDateString('vi-VN')
+                  (profile?.dateOfBirth || kycData?.dateOfBirth) as string
+                ).toLocaleDateString('vi-VN')
                 : 'Chưa cập nhật'}
             </Text>
           </View>
@@ -482,6 +650,232 @@ export default function IdentityAccountScreen() {
           <Text style={styles.logoutText}>Đăng xuất khỏi thiết bị</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* ── MODAL CHỈNH SỬA THÔNG TIN CÁ NHÂN ── */}
+      <Modal
+        visible={showEditModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowEditModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>Chỉnh sửa thông tin</Text>
+                <Text style={styles.modalSub}>Cập nhật thông tin hồ sơ tài khoản</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setShowEditModal(false)}
+                style={styles.modalCloseBtn}
+                activeOpacity={0.7}
+              >
+                <MaterialCommunityIcons name="close" size={22} color={Colors.navy} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 420 }}>
+              {/* CCCD Cố Định (Read-Only) */}
+              <View style={styles.inputGroup}>
+                <View style={styles.labelWithLockRow}>
+                  <Text style={styles.inputLabel}>Số CCCD / Mã định danh</Text>
+                  <View style={styles.lockedPill}>
+                    <MaterialCommunityIcons name="lock" size={12} color="#64748B" />
+                    <Text style={styles.lockedPillText}>Không cho sửa</Text>
+                  </View>
+                </View>
+                <View style={styles.disabledInputBox}>
+                  <Text style={styles.disabledInputText}>{identityNumber || 'Chưa có CCCD'}</Text>
+                </View>
+                <Text style={styles.fieldHint}>
+                  Số CCCD được đối soát cố định từ quy trình định danh eKYC để bảo đảm tính pháp lý cho hợp đồng.
+                </Text>
+              </View>
+
+              {/* Họ và tên */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Họ và tên *</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={editFullName}
+                  onChangeText={setEditFullName}
+                  placeholder="Nhập họ và tên đầy đủ"
+                  placeholderTextColor={Colors.textMuted}
+                />
+              </View>
+
+              {/* Số điện thoại */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Số điện thoại liên hệ *</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={editPhoneNumber}
+                  onChangeText={setEditPhoneNumber}
+                  placeholder="Ví dụ: 0912345678"
+                  placeholderTextColor={Colors.textMuted}
+                  keyboardType="phone-pad"
+                />
+              </View>
+
+              {/* Ngày sinh */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Ngày sinh (YYYY-MM-DD)</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={editDateOfBirth}
+                  onChangeText={setEditDateOfBirth}
+                  placeholder="Ví dụ: 1995-08-15"
+                  placeholderTextColor={Colors.textMuted}
+                />
+              </View>
+
+              {/* Nơi thường trú */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Nơi ở thường trú / Địa chỉ</Text>
+                <TextInput
+                  style={[styles.textInput, { height: 70, textAlignVertical: 'top' }]}
+                  value={editAddress}
+                  onChangeText={setEditAddress}
+                  placeholder="Nhập số nhà, đường, phường/xã, quận/huyện, tỉnh/TP"
+                  placeholderTextColor={Colors.textMuted}
+                  multiline
+                />
+              </View>
+            </ScrollView>
+
+            <View style={styles.modalFooterRow}>
+              <TouchableOpacity
+                style={styles.modalCancelBtn}
+                onPress={() => setShowEditModal(false)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.modalCancelBtnText}>Hủy bỏ</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.modalSubmitBtn}
+                onPress={handleSaveProfile}
+                disabled={savingProfile}
+                activeOpacity={0.85}
+              >
+                {savingProfile ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <>
+                    <MaterialCommunityIcons name="content-save-outline" size={17} color="#FFFFFF" />
+                    <Text style={styles.modalSubmitBtnText}>Lưu thông tin</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── MODAL ĐỔI MẬT KHẨU ── */}
+      <Modal
+        visible={showPasswordModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowPasswordModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>Đổi mật khẩu</Text>
+                <Text style={styles.modalSub}>Tăng cường bảo mật cho tài khoản của bạn</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setShowPasswordModal(false)}
+                style={styles.modalCloseBtn}
+                activeOpacity={0.7}
+              >
+                <MaterialCommunityIcons name="close" size={22} color={Colors.navy} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 360 }}>
+              {/* Mật khẩu hiện tại */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Mật khẩu hiện tại *</Text>
+                <View style={styles.passwordInputWrap}>
+                  <TextInput
+                    style={styles.passwordInput}
+                    value={currentPassword}
+                    onChangeText={setCurrentPassword}
+                    placeholder="Nhập mật khẩu đang dùng"
+                    placeholderTextColor={Colors.textMuted}
+                    secureTextEntry={!showPasswordText}
+                  />
+                  <TouchableOpacity
+                    onPress={() => setShowPasswordText(!showPasswordText)}
+                    style={styles.eyeBtn}
+                  >
+                    <MaterialCommunityIcons
+                      name={showPasswordText ? 'eye-off-outline' : 'eye-outline'}
+                      size={20}
+                      color={Colors.textMuted}
+                    />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Mật khẩu mới */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Mật khẩu mới (Tối thiểu 6 ký tự) *</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={newPassword}
+                  onChangeText={setNewPassword}
+                  placeholder="Nhập mật khẩu mới"
+                  placeholderTextColor={Colors.textMuted}
+                  secureTextEntry={!showPasswordText}
+                />
+              </View>
+
+              {/* Xác nhận mật khẩu mới */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Xác nhận mật khẩu mới *</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                  placeholder="Nhập lại mật khẩu mới"
+                  placeholderTextColor={Colors.textMuted}
+                  secureTextEntry={!showPasswordText}
+                />
+              </View>
+            </ScrollView>
+
+            <View style={styles.modalFooterRow}>
+              <TouchableOpacity
+                style={styles.modalCancelBtn}
+                onPress={() => setShowPasswordModal(false)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.modalCancelBtnText}>Hủy</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.modalSubmitBtn}
+                onPress={handleSavePassword}
+                disabled={savingPassword}
+                activeOpacity={0.85}
+              >
+                {savingPassword ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <>
+                    <MaterialCommunityIcons name="lock-check-outline" size={17} color="#FFFFFF" />
+                    <Text style={styles.modalSubmitBtnText}>Đổi mật khẩu</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -494,7 +888,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.md,
-    paddingBottom: Spacing.xxxl,
+    paddingBottom: 110, // Floating bottom nav bar allowance
   },
   header: {
     flexDirection: 'row',
@@ -534,7 +928,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.navy,
     borderRadius: BorderRadius.xl,
     padding: Spacing.xl,
-    marginBottom: Spacing.xl,
+    marginBottom: Spacing.md,
     position: 'relative',
     overflow: 'hidden',
     ...Shadows.lg,
@@ -633,6 +1027,40 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#FFFFFF',
   },
+  actionPillGrid: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    marginBottom: Spacing.xl,
+  },
+  actionPillBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    ...Shadows.sm,
+  },
+  actionPillIconCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionPillTitle: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: Colors.navy,
+  },
+  actionPillSub: {
+    fontSize: 10.5,
+    color: Colors.textMuted,
+    marginTop: 1,
+  },
   sectionHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -663,6 +1091,20 @@ const styles = StyleSheet.create({
   },
   sectionActionLink: {
     fontSize: 13,
+    fontWeight: '700',
+    color: Colors.blue,
+  },
+  editHeaderBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: Colors.blueSoft,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: BorderRadius.full,
+  },
+  editHeaderText: {
+    fontSize: 12,
     fontWeight: '700',
     color: Colors.blue,
   },
@@ -867,6 +1309,22 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     gap: Spacing.md,
   },
+  lockedValBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: Colors.surfaceAlt,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+  },
+  lockedNote: {
+    fontSize: 10.5,
+    color: Colors.textMuted,
+    marginTop: 2,
+  },
   hairline: {
     height: 1,
     backgroundColor: Colors.borderLight,
@@ -901,5 +1359,161 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '800',
     color: Colors.danger,
+  },
+
+  /* Modal Styles */
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 23, 67, 0.65)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: Colors.surface,
+    borderTopLeftRadius: BorderRadius.xl,
+    borderTopRightRadius: BorderRadius.xl,
+    padding: Spacing.xl,
+    paddingBottom: Spacing.xxl + 10,
+    ...Shadows.lg,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.lg,
+    paddingBottom: Spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderLight,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: Colors.navy,
+  },
+  modalSub: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  modalCloseBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.surfaceAlt,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  inputGroup: {
+    marginBottom: Spacing.md,
+  },
+  labelWithLockRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  inputLabel: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: Colors.navy,
+    marginBottom: 6,
+  },
+  lockedPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.full,
+  },
+  lockedPillText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  disabledInputBox: {
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 12,
+  },
+  disabledInputText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.textMuted,
+    fontVariant: ['tabular-nums'],
+  },
+  fieldHint: {
+    fontSize: 11,
+    color: Colors.textMuted,
+    marginTop: 4,
+    lineHeight: 15,
+  },
+  textInput: {
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 11,
+    fontSize: 14,
+    color: Colors.navy,
+    fontWeight: '600',
+  },
+  passwordInputWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.sm,
+    paddingRight: Spacing.sm,
+  },
+  passwordInput: {
+    flex: 1,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 11,
+    fontSize: 14,
+    color: Colors.navy,
+    fontWeight: '600',
+  },
+  eyeBtn: {
+    padding: 6,
+  },
+  modalFooterRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    marginTop: Spacing.lg,
+    paddingTop: Spacing.sm,
+  },
+  modalCancelBtn: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.surfaceMuted,
+    borderRadius: BorderRadius.md,
+    minHeight: 46,
+  },
+  modalCancelBtnText: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: Colors.navy,
+  },
+  modalSubmitBtn: {
+    flex: 1.6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: Colors.navy,
+    borderRadius: BorderRadius.md,
+    minHeight: 46,
+  },
+  modalSubmitBtnText: {
+    fontSize: 13.5,
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
 });
