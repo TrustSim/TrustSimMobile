@@ -2,11 +2,11 @@ import React, { useCallback, useState } from 'react';
 import {
   Alert,
   Dimensions,
+  Image,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -22,52 +22,63 @@ import { VerificationStatusBadge } from '../../components/trust/VerificationStat
 import { useAuth } from '../../context/AuthContext';
 import { contractService } from '../../services/contractService';
 import { simService } from '../../services/simService';
-import type { TradeTransactionDto } from '../../types';
+import type { SimOwnershipDto, TradeTransactionDto } from '../../types';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-// Sample VIP SIMs for the "Featured Artwork / VIP SIMs" carousel (Image 2 style)
-const FEATURED_VIP_SIMS = [
-  {
-    id: 'vip-1',
-    phoneNumber: '0988.888.888',
-    rhythm: 'Bát Quý 8 Cực Phẩm',
-    carrier: 'Viettel 5G',
-    currentBid: '850.000.000 ₫',
-    endingIn: '6h 32m 23s',
-    gradientColors: ['#001743', '#0B2A6B'],
-    verified: true,
-  },
-  {
-    id: 'vip-2',
-    phoneNumber: '0909.666.999',
-    rhythm: 'Lộc Phát Thần Tài',
-    carrier: 'MobiFone VIP',
-    currentBid: '265.000.000 ₫',
-    endingIn: '12h 15m 08s',
-    gradientColors: ['#0B1630', '#1E293B'],
-    verified: true,
-  },
-  {
-    id: 'vip-3',
-    phoneNumber: '0912.345.678',
-    rhythm: 'Sảnh Tiến Đại Gia',
-    carrier: 'VinaPhone VIP',
-    currentBid: '420.000.000 ₫',
-    endingIn: '1 ngày 4h',
-    gradientColors: ['#001743', '#1D4ED8'],
-    verified: true,
-  },
-];
+function getCarrierTheme(carrier?: string) {
+  const upper = (carrier || '').toUpperCase();
+  if (upper.includes('VIETTEL')) {
+    return {
+      bg: Colors.viettelSoft,
+      text: Colors.viettel,
+      border: '#FECDD3',
+      label: carrier || 'Viettel',
+    };
+  }
+  if (upper.includes('VINA')) {
+    return {
+      bg: Colors.vinaphoneSoft,
+      text: Colors.vinaphone,
+      border: '#BFDBFE',
+      label: carrier || 'VinaPhone',
+    };
+  }
+  if (upper.includes('MOBI')) {
+    return {
+      bg: Colors.mobifoneSoft,
+      text: Colors.mobifone,
+      border: '#BAE6FD',
+      label: carrier || 'MobiFone',
+    };
+  }
+  return {
+    bg: Colors.goldSoft,
+    text: Colors.gold,
+    border: Colors.goldBorder,
+    label: carrier || 'Nhà mạng VN',
+  };
+}
+
+function getSimBadgeProps(sim: SimOwnershipDto) {
+  if (sim.verificationStatus === 'VERIFIED' || sim.ownershipStatus === 'ACTIVE') {
+    return { status: 'verified' as const, label: 'Chính chủ' };
+  }
+  if (sim.verificationStatus === 'PENDING_VERIFICATION') {
+    return { status: 'checking' as const, label: 'Đang duyệt' };
+  }
+  if (sim.verificationStatus === 'REJECTED' || sim.ownershipStatus === 'REVOKED') {
+    return { status: 'rejected' as const, label: 'Từ chối' };
+  }
+  return { status: 'pending' as const, label: 'Cần OTP' };
+}
 
 export default function HomeScreen() {
   const router = useRouter();
   const { user, profile, wallet, escrowBalance, refreshWallet, refreshProfile } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
   const [activeTrades, setActiveTrades] = useState<TradeTransactionDto[]>([]);
-  const [verifiedSimCount, setVerifiedSimCount] = useState<number>(0);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [savedSims, setSavedSims] = useState<Record<string, boolean>>({});
+  const [myOwnerships, setMyOwnerships] = useState<SimOwnershipDto[]>([]);
 
   const fetchDashboardData = useCallback(async () => {
     try {
@@ -87,10 +98,13 @@ export default function HomeScreen() {
       }
 
       if (simsRes.status === 'fulfilled' && simsRes.value.success && simsRes.value.data?.items) {
-        setVerifiedSimCount(simsRes.value.data.totalCount ?? simsRes.value.data.items.length);
+        setMyOwnerships(simsRes.value.data.items);
+      } else {
+        setMyOwnerships([]);
       }
     } catch {
       setActiveTrades([]);
+      setMyOwnerships([]);
     }
   }, []);
 
@@ -112,7 +126,6 @@ export default function HomeScreen() {
   );
 
   const isVerified = profile?.verificationStatus === 'VERIFIED';
-  const isPendingKyc = profile?.verificationStatus === 'PENDING_VERIFICATION';
   const availableBal = wallet?.availableBalance ?? 0;
   const depositBal = wallet?.lockedBalance ?? 0;
   const escrowBal = wallet?.escrowBalance ?? escrowBalance ?? 0;
@@ -158,10 +171,6 @@ export default function HomeScreen() {
     } else {
       router.push('/(tabs)/contracts');
     }
-  };
-
-  const toggleSaveSim = (id: string) => {
-    setSavedSims((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
   const quickActions = [
@@ -215,14 +224,14 @@ export default function HomeScreen() {
       label: 'Định danh',
       sub: isVerified ? 'Đã xác minh' : 'Chụp CCCD',
       icon: 'card-account-details-outline' as const,
-      color: isVerified ? Colors.success : '#4C5FD5',
+      color: isVerified ? Colors.success : Colors.indigo,
       bgColor: isVerified ? Colors.successLight : '#EEF2FF',
       onPress: () => router.push(isVerified ? '/(tabs)/account' : '/kyc'),
     },
     {
       key: 'sim-vault',
       label: 'Kho SIM',
-      sub: `${verifiedSimCount} thuê bao`,
+      sub: `${myOwnerships.length} thuê bao`,
       icon: 'sim' as const,
       color: Colors.indigo,
       bgColor: '#EEF2FF',
@@ -239,8 +248,6 @@ export default function HomeScreen() {
     },
   ];
 
-  const displayName = profile?.fullName || user?.fullName || user?.userName || 'Thành viên';
-
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
       <ScrollView
@@ -250,24 +257,25 @@ export default function HomeScreen() {
         }
         showsVerticalScrollIndicator={false}
       >
-        {/* ─── 1. TOP BRAND ROW (Image 2 Style) ─── */}
+        {/* ─── 1. TOP HEADER: LOGO S-White-Logo & ACTIONS (No "Xin chào") ─── */}
         <View style={styles.topBrandRow}>
-          <View style={styles.brandTitleCol}>
-            <View style={styles.brandLogoRow}>
-              <View style={styles.brandEmblemBox}>
-                <MaterialCommunityIcons name="shield-check" size={18} color="#FFFFFF" />
-              </View>
+          <View style={styles.brandLogoRow}>
+            <View style={styles.brandEmblemBox}>
+              <Image
+                source={require('../../../assets/images/logo/S-White-Logo.png')}
+                style={styles.brandLogoImg}
+                resizeMode="contain"
+              />
+            </View>
+            <View>
               <Text style={styles.brandTitleText}>TrustSim</Text>
               <View style={styles.vaultBadgePill}>
                 <Text style={styles.vaultBadgeText}>VAULT</Text>
               </View>
             </View>
-            <Text style={styles.greetingSubText}>
-              Xin chào, <Text style={styles.greetingName}>{displayName}</Text>
-            </Text>
           </View>
 
-          {/* Right Action Icons (Wallet & Bell Pills - Image 2) */}
+          {/* Right Action Icons (Wallet & Bell Pills) */}
           <View style={styles.topActionsRow}>
             <TouchableOpacity
               style={styles.topIconPill}
@@ -290,121 +298,9 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* ─── 2. SEARCH PILL (Image 2 Style) ─── */}
-        <View style={styles.searchPillContainer}>
-          <MaterialCommunityIcons name="magnify" size={22} color={Colors.textMuted} style={styles.searchIcon} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Tìm kiếm SIM tứ quý, lộc phát, phong thủy..."
-            placeholderTextColor={Colors.textMuted}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <MaterialCommunityIcons name="close-circle" size={18} color={Colors.textMuted} />
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* ─── 3. FEATURED VIP SIM CARDS CAROUSEL (Image 2 "Most Popular Artwork" Style) ─── */}
-        <View style={styles.sectionHeaderRow}>
-          <View>
-            <Text style={styles.sectionTitle}>SIM Nổi Bật & Đấu Giá Trực Tiếp</Text>
-            <Text style={styles.sectionSub}>Bảo chứng quyền sở hữu chính chủ 100%</Text>
-          </View>
-          <TouchableOpacity
-            style={styles.moreOptionsBtn}
-            onPress={() => router.push('/(tabs)/sims')}
-            activeOpacity={0.8}
-          >
-            <MaterialCommunityIcons name="dots-horizontal" size={22} color={Colors.textSecondary} />
-          </TouchableOpacity>
-        </View>
-
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.featuredCarouselContent}
-          decelerationRate="fast"
-          snapToInterval={SCREEN_WIDTH * 0.78 + 14}
-        >
-          {FEATURED_VIP_SIMS.map((sim) => {
-            const isSaved = !!savedSims[sim.id];
-            return (
-              <View key={sim.id} style={styles.vipSimCard}>
-                {/* Visual Backdrop (Deep Royal Navy) */}
-                <View style={styles.vipCardBackdrop}>
-                  {/* Glowing decorative rings */}
-                  <View style={styles.vipGlowCircle} />
-
-                  {/* Top floating tags (Artwork pill & Heart pill - Image 2) */}
-                  <View style={styles.vipCardTopRow}>
-                    <View style={styles.vipRhythmBadge}>
-                      <MaterialCommunityIcons name="star-four-points" size={12} color="#F59E0B" />
-                      <Text style={styles.vipRhythmBadgeText}>{sim.rhythm}</Text>
-                    </View>
-
-                    <TouchableOpacity
-                      style={[styles.vipHeartPill, isSaved && styles.vipHeartPillActive]}
-                      onPress={() => toggleSaveSim(sim.id)}
-                      activeOpacity={0.85}
-                    >
-                      <MaterialCommunityIcons
-                        name={isSaved ? 'heart' : 'heart-outline'}
-                        size={17}
-                        color={isSaved ? '#EF4444' : '#FFFFFF'}
-                      />
-                    </TouchableOpacity>
-                  </View>
-
-                  {/* Middle: Golden Microchip & Big Display Number */}
-                  <View style={styles.vipCardCenter}>
-                    <View style={styles.goldMicrochipPlate}>
-                      <View style={styles.chipGridH} />
-                      <View style={styles.chipGridV} />
-                      <MaterialCommunityIcons name="integrated-circuit-chip" size={22} color="#92400E" />
-                    </View>
-
-                    <Text style={styles.vipPhoneNumber} numberOfLines={1}>
-                      {sim.phoneNumber}
-                    </Text>
-
-                    <View style={styles.vipCarrierRow}>
-                      <View style={styles.carrierDot} />
-                      <Text style={styles.vipCarrierText}>{sim.carrier}</Text>
-                      <Text style={styles.vipDotDivider}>•</Text>
-                      <Text style={styles.vipVerifiedText}>Đã đối soát OTP</Text>
-                    </View>
-                  </View>
-
-                  {/* Bottom Glassmorphic Overlay Panel (Exact match to Image 2 footer) */}
-                  <View style={styles.vipGlassFooter}>
-                    <View style={styles.glassFooterCol}>
-                      <Text style={styles.glassFooterLabel}>Giá khởi điểm / Bid</Text>
-                      <Text style={styles.glassFooterValue} numberOfLines={1}>
-                        {sim.currentBid}
-                      </Text>
-                    </View>
-
-                    <View style={styles.glassFooterDivider} />
-
-                    <View style={styles.glassFooterColRight}>
-                      <Text style={styles.glassFooterLabel}>Thời gian còn</Text>
-                      <View style={styles.timerRow}>
-                        <MaterialCommunityIcons name="clock-outline" size={13} color="#CBD5E1" />
-                        <Text style={styles.glassFooterTimer}>{sim.endingIn}</Text>
-                      </View>
-                    </View>
-                  </View>
-                </View>
-              </View>
-            );
-          })}
-        </ScrollView>
-
-        {/* ─── 4. HERO VAULT BALANCE CARD (Deep Royal Navy #001743) ─── */}
+        {/* ─── 2. HERO BANNER: SỐ DƯ KHẢ DỤNG & VÍ TIỀN ─── */}
         <View style={styles.heroVaultCard}>
+          <View style={styles.heroGlowCircle} />
           <View style={styles.heroTopRow}>
             <View style={styles.balancePrimaryCol}>
               <Text style={styles.heroBalanceLabel}>Số dư ví khả dụng</Text>
@@ -472,7 +368,7 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Nút Nạp tiền & Rút tiền Pill Actions (Soft-Cloud Navy tokens) */}
+          {/* Nút Nạp tiền & Rút tiền Pill Actions (Soft-Cloud Navy) */}
           <View style={styles.heroActionRow}>
             <TouchableOpacity
               style={styles.heroDepositBtn}
@@ -498,7 +394,159 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* ─── 5. QUICK ACTIONS BENTO GRID ─── */}
+        {/* ─── 3. SIM OWNER CARDS: SIM MÀ BẢN THÂN SỞ HỮU (Style Ảnh 2) ─── */}
+        <View style={styles.sectionHeaderRow}>
+          <View style={styles.sectionTitleWithCount}>
+            <Text style={styles.sectionTitle}>SIM sở hữu của bạn</Text>
+            {myOwnerships.length > 0 && (
+              <View style={styles.countPill}>
+                <Text style={styles.countPillText}>{myOwnerships.length}</Text>
+              </View>
+            )}
+          </View>
+          <TouchableOpacity onPress={() => router.push('/(tabs)/sims')} activeOpacity={0.8}>
+            <Text style={styles.sectionLink}>Quản lý kho SIM →</Text>
+          </TouchableOpacity>
+        </View>
+
+        {myOwnerships.length === 0 ? (
+          <View style={styles.emptySimCard}>
+            <View style={styles.emptySimIconCircle}>
+              <MaterialCommunityIcons name="sim" size={28} color={Colors.gold} />
+            </View>
+            <Text style={styles.emptySimTitle}>Bạn chưa có SIM nào trong kho</Text>
+            <Text style={styles.emptySimSub}>
+              Khai báo số thuê bao bạn đang sở hữu và xác thực OTP để bảo chứng quyền sở hữu chính chủ trên sàn.
+            </Text>
+            <TouchableOpacity
+              style={styles.emptySimAddBtn}
+              onPress={handleRegisterSim}
+              activeOpacity={0.88}
+            >
+              <MaterialCommunityIcons name="plus" size={17} color="#FFFFFF" />
+              <Text style={styles.emptySimAddBtnText}>Khai báo SIM mới</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.simOwnerCarouselContent}
+            decelerationRate="fast"
+            snapToInterval={SCREEN_WIDTH * 0.78 + 14}
+          >
+            {myOwnerships.map((sim) => {
+              const carrierTheme = getCarrierTheme(sim.carrierName);
+              const badge = getSimBadgeProps(sim);
+              const isOwnVerified =
+                sim.verificationStatus === 'VERIFIED' || sim.ownershipStatus === 'ACTIVE';
+
+              return (
+                <TouchableOpacity
+                  key={sim.id}
+                  style={styles.simOwnerCard}
+                  onPress={() => router.push('/(tabs)/sims')}
+                  activeOpacity={0.9}
+                >
+                  <View style={styles.simCardBackdrop}>
+                    <View style={styles.simGlowCircle} />
+
+                    {/* Top row: Carrier Pill & Status Pill */}
+                    <View style={styles.simCardTopRow}>
+                      <View
+                        style={[
+                          styles.carrierPillBadge,
+                          { backgroundColor: 'rgba(255, 255, 255, 0.15)', borderColor: 'rgba(255, 255, 255, 0.25)' },
+                        ]}
+                      >
+                        <View style={[styles.carrierLiveDot, { backgroundColor: '#34D399' }]} />
+                        <Text style={styles.carrierPillText}>{carrierTheme.label}</Text>
+                      </View>
+
+                      <View
+                        style={[
+                          styles.statusBadgePill,
+                          isOwnVerified
+                            ? { backgroundColor: 'rgba(52, 211, 153, 0.2)', borderColor: 'rgba(52, 211, 153, 0.4)' }
+                            : { backgroundColor: 'rgba(251, 191, 36, 0.2)', borderColor: 'rgba(251, 191, 36, 0.4)' },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.statusBadgePillText,
+                            { color: isOwnVerified ? '#34D399' : '#FBBF24' },
+                          ]}
+                        >
+                          {badge.label}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Center: Gold Microchip & Phone Number */}
+                    <View style={styles.simCardCenter}>
+                      <View style={styles.goldMicrochipPlate}>
+                        <View style={styles.chipGridH} />
+                        <View style={styles.chipGridV} />
+                        <MaterialCommunityIcons
+                          name="integrated-circuit-chip"
+                          size={22}
+                          color="#92400E"
+                        />
+                      </View>
+
+                      <Text style={styles.simOwnerPhoneNumber} numberOfLines={1}>
+                        {sim.phoneNumber}
+                      </Text>
+
+                      <View style={styles.simRhythmRow}>
+                        {sim.formatRhythmName ? (
+                          <View style={styles.rhythmPill}>
+                            <MaterialCommunityIcons
+                              name="star-four-points"
+                              size={11}
+                              color="#F59E0B"
+                            />
+                            <Text style={styles.rhythmPillText}>{sim.formatRhythmName}</Text>
+                          </View>
+                        ) : (
+                          <Text style={styles.simDefaultHintText}>Tài sản thuê bao chính chủ</Text>
+                        )}
+                      </View>
+                    </View>
+
+                    {/* Bottom Glassmorphic Footer (OpenNFTs style) */}
+                    <View style={styles.simGlassFooter}>
+                      <View style={styles.glassFooterCol}>
+                        <Text style={styles.glassFooterLabel}>Định giá niêm yết</Text>
+                        <Text style={styles.glassFooterValue} numberOfLines={1}>
+                          {sim.price > 0
+                            ? `${sim.price.toLocaleString('vi-VN')} ₫`
+                            : 'Chưa niêm yết'}
+                        </Text>
+                      </View>
+
+                      <View style={styles.glassFooterDivider} />
+
+                      <View style={styles.glassFooterColRight}>
+                        <Text style={styles.glassFooterLabel}>Thao tác</Text>
+                        <View style={styles.actionArrowRow}>
+                          <Text style={styles.glassActionText}>Chi tiết</Text>
+                          <MaterialCommunityIcons
+                            name="chevron-right"
+                            size={16}
+                            color="#CBD5E1"
+                          />
+                        </View>
+                      </View>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        )}
+
+        {/* ─── 4. QUICK ACTIONS BENTO GRID ─── */}
         <View style={styles.sectionHeaderRow}>
           <Text style={styles.sectionTitle}>Tiện ích nhanh</Text>
           <TouchableOpacity onPress={() => router.push('/(tabs)/wallet')}>
@@ -529,7 +577,7 @@ export default function HomeScreen() {
           ))}
         </View>
 
-        {/* ─── 6. ACTIVE DEALS & CONTRACTS SECTION ─── */}
+        {/* ─── 5. ACTIVE DEALS & CONTRACTS SECTION (DANH SÁCH GIAO DỊCH) ─── */}
         <View style={styles.sectionHeaderRow}>
           <View style={styles.sectionTitleWithCount}>
             <Text style={styles.sectionTitle}>Giao dịch & Hợp đồng SIM</Text>
@@ -658,7 +706,7 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {/* ─── 7. TRUNG TÂM BẢO CHỨNG TÀI SẢN ─── */}
+        {/* ─── 6. TRUNG TÂM BẢO CHỨNG TÀI SẢN ─── */}
         <View style={[styles.sectionHeaderRow, { marginTop: Spacing.xl }]}>
           <Text style={styles.sectionTitle}>Trung tâm bảo chứng tài sản</Text>
         </View>
@@ -705,8 +753,8 @@ export default function HomeScreen() {
             <View style={styles.trustBody}>
               <Text style={styles.trustCardTitle}>Tài sản SIM chính chủ</Text>
               <Text style={styles.trustCardSub}>
-                {verifiedSimCount > 0
-                  ? `Đang quản lý ${verifiedSimCount} SIM số đẹp đã đối soát nhà mạng`
+                {myOwnerships.length > 0
+                  ? `Đang quản lý ${myOwnerships.length} SIM số đẹp đã đối soát nhà mạng`
                   : 'Xác thực SMS OTP & đối soát thông tin chủ thuê bao'}
               </Text>
             </View>
@@ -747,33 +795,35 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.md,
-    paddingBottom: 110, // Generous padding to clear the floating bottom navigation bar
+    paddingTop: Spacing.sm,
+    paddingBottom: 110, // Avoid bottom floating nav bar
   },
 
-  // 1. Top Brand Row (Image 2 style)
+  // 1. Top Brand Row with S-White-Logo (Image 2 style, no "Xin chào")
   topBrandRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: Spacing.md,
   },
-  brandTitleCol: {
-    flex: 1,
-  },
   brandLogoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 10,
   },
   brandEmblemBox: {
-    width: 28,
-    height: 28,
-    borderRadius: 9,
+    width: 38,
+    height: 38,
+    borderRadius: 12,
     backgroundColor: Colors.navy,
     alignItems: 'center',
     justifyContent: 'center',
+    padding: 6,
     ...Shadows.sm,
+  },
+  brandLogoImg: {
+    width: 24,
+    height: 24,
   },
   brandTitleText: {
     fontSize: 20,
@@ -784,23 +834,16 @@ const styles = StyleSheet.create({
   vaultBadgePill: {
     backgroundColor: 'rgba(76, 95, 213, 0.12)',
     paddingHorizontal: 7,
-    paddingVertical: 2,
+    paddingVertical: 1.5,
     borderRadius: BorderRadius.full,
+    alignSelf: 'flex-start',
+    marginTop: 1,
   },
   vaultBadgeText: {
     fontSize: 9.5,
     fontWeight: '800',
     color: Colors.indigo,
     letterSpacing: 0.5,
-  },
-  greetingSubText: {
-    fontSize: 12.5,
-    color: Colors.textSecondary,
-    marginTop: 2,
-  },
-  greetingName: {
-    fontWeight: '700',
-    color: Colors.navy,
   },
   topActionsRow: {
     flexDirection: 'row',
@@ -829,210 +872,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#EF4444',
   },
 
-  // 2. Search Pill (Image 2 style)
-  searchPillContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.full,
-    paddingHorizontal: 16,
-    height: 48,
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
-    marginBottom: Spacing.lg,
-    ...Shadows.sm,
-  },
-  searchIcon: {
-    marginRight: 10,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 13.5,
-    color: Colors.text,
-    paddingVertical: 0,
-  },
-
-  // 3. Featured VIP SIMs Carousel (Image 2 style)
-  featuredCarouselContent: {
-    paddingRight: Spacing.lg,
-    gap: 14,
-    marginBottom: Spacing.xl,
-  },
-  vipSimCard: {
-    width: SCREEN_WIDTH * 0.78,
-    borderRadius: 28,
-    overflow: 'hidden',
-    backgroundColor: Colors.navy,
-    ...Shadows.lg,
-  },
-  vipCardBackdrop: {
-    padding: 18,
-    minHeight: 220,
-    justifyContent: 'space-between',
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  vipGlowCircle: {
-    position: 'absolute',
-    top: -40,
-    right: -40,
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-    backgroundColor: 'rgba(76, 95, 213, 0.28)',
-  },
-  vipCardTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    zIndex: 2,
-  },
-  vipRhythmBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.22)',
-    paddingHorizontal: 11,
-    paddingVertical: 5,
-    borderRadius: BorderRadius.full,
-  },
-  vipRhythmBadgeText: {
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  vipHeartPill: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255, 255, 255, 0.14)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  vipHeartPillActive: {
-    backgroundColor: 'rgba(239, 68, 68, 0.25)',
-  },
-  vipCardCenter: {
-    marginVertical: 14,
-    alignItems: 'flex-start',
-    zIndex: 2,
-  },
-  goldMicrochipPlate: {
-    width: 38,
-    height: 30,
-    borderRadius: 6,
-    backgroundColor: '#FDE68A',
-    borderWidth: 1.5,
-    borderColor: '#D97706',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 10,
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  chipGridH: {
-    position: 'absolute',
-    top: 14,
-    left: 0,
-    right: 0,
-    height: 1,
-    backgroundColor: '#B45309',
-    opacity: 0.4,
-  },
-  chipGridV: {
-    position: 'absolute',
-    left: 18,
-    top: 0,
-    bottom: 0,
-    width: 1,
-    backgroundColor: '#B45309',
-    opacity: 0.4,
-  },
-  vipPhoneNumber: {
-    fontSize: 24,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    fontVariant: ['tabular-nums'],
-    letterSpacing: -0.5,
-  },
-  vipCarrierRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 4,
-  },
-  carrierDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#34D399',
-  },
-  vipCarrierText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#CBD5E1',
-  },
-  vipDotDivider: {
-    fontSize: 12,
-    color: '#64748B',
-  },
-  vipVerifiedText: {
-    fontSize: 11.5,
-    color: '#94A3B8',
-  },
-
-  // Glass Footer on VIP SIM Card (Image 2 style)
-  vipGlassFooter: {
-    flexDirection: 'row',
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 18,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    alignItems: 'center',
-    zIndex: 2,
-  },
-  glassFooterCol: {
-    flex: 1,
-  },
-  glassFooterColRight: {
-    flex: 1,
-    alignItems: 'flex-end',
-  },
-  glassFooterDivider: {
-    width: 1,
-    height: 24,
-    backgroundColor: 'rgba(255, 255, 255, 0.18)',
-    marginHorizontal: 8,
-  },
-  glassFooterLabel: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#94A3B8',
-    marginBottom: 2,
-  },
-  glassFooterValue: {
-    fontSize: 13.5,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    fontVariant: ['tabular-nums'],
-  },
-  timerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  glassFooterTimer: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#E2E8F0',
-    fontVariant: ['tabular-nums'],
-  },
-
-  // 4. Hero Vault Balance Card
+  // 2. Hero Vault Balance Card
   heroVaultCard: {
     backgroundColor: Colors.navy,
     borderRadius: 28,
@@ -1042,11 +882,21 @@ const styles = StyleSheet.create({
     position: 'relative',
     ...Shadows.lg,
   },
+  heroGlowCircle: {
+    position: 'absolute',
+    top: -50,
+    right: -50,
+    width: 170,
+    height: 170,
+    borderRadius: 85,
+    backgroundColor: 'rgba(76, 95, 213, 0.28)',
+  },
   heroTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     marginBottom: Spacing.lg,
+    zIndex: 2,
   },
   balancePrimaryCol: {
     flex: 1,
@@ -1089,6 +939,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: Spacing.sm,
     marginBottom: Spacing.lg,
+    zIndex: 2,
   },
   glassSubCard: {
     flex: 1,
@@ -1128,6 +979,7 @@ const styles = StyleSheet.create({
   heroActionRow: {
     flexDirection: 'row',
     gap: Spacing.sm,
+    zIndex: 2,
   },
   heroDepositBtn: {
     flex: 1.2,
@@ -1163,7 +1015,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
 
-  // 5. Section Headers & Quick Actions
+  // 3. SIM Owner Carousel (Image 2 style)
   sectionHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1181,14 +1033,6 @@ const styles = StyleSheet.create({
     color: Colors.navy,
     letterSpacing: -0.3,
   },
-  sectionSub: {
-    fontSize: 11.5,
-    color: Colors.textSecondary,
-    marginTop: 1,
-  },
-  moreOptionsBtn: {
-    padding: 4,
-  },
   countPill: {
     backgroundColor: 'rgba(76, 95, 213, 0.12)',
     paddingHorizontal: 8,
@@ -1205,6 +1049,236 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: Colors.indigo,
   },
+
+  // Empty state for SIM Owner
+  emptySimCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 24,
+    padding: Spacing.xl,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    marginBottom: Spacing.xl,
+    ...Shadows.sm,
+  },
+  emptySimIconCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: Colors.goldSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.sm,
+  },
+  emptySimTitle: {
+    fontSize: 15.5,
+    fontWeight: '800',
+    color: Colors.navy,
+    textAlign: 'center',
+  },
+  emptySimSub: {
+    fontSize: 12.5,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 18,
+    marginTop: 4,
+    marginBottom: Spacing.md,
+    paddingHorizontal: Spacing.md,
+  },
+  emptySimAddBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: Colors.indigo,
+    paddingHorizontal: 18,
+    paddingVertical: 11,
+    borderRadius: BorderRadius.full,
+    ...Shadows.sm,
+  },
+  emptySimAddBtnText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+
+  // Active SIM Owner Cards
+  simOwnerCarouselContent: {
+    paddingRight: Spacing.lg,
+    gap: 14,
+    marginBottom: Spacing.xl,
+  },
+  simOwnerCard: {
+    width: SCREEN_WIDTH * 0.78,
+    borderRadius: 28,
+    overflow: 'hidden',
+    backgroundColor: Colors.navy,
+    ...Shadows.lg,
+  },
+  simCardBackdrop: {
+    padding: 18,
+    minHeight: 220,
+    justifyContent: 'space-between',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  simGlowCircle: {
+    position: 'absolute',
+    top: -40,
+    right: -40,
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: 'rgba(76, 95, 213, 0.28)',
+  },
+  simCardTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    zIndex: 2,
+  },
+  carrierPillBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.full,
+  },
+  carrierLiveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  carrierPillText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  statusBadgePill: {
+    paddingHorizontal: 9,
+    paddingVertical: 3.5,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+  },
+  statusBadgePillText: {
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  simCardCenter: {
+    marginVertical: 12,
+    alignItems: 'flex-start',
+    zIndex: 2,
+  },
+  goldMicrochipPlate: {
+    width: 38,
+    height: 30,
+    borderRadius: 6,
+    backgroundColor: '#FDE68A',
+    borderWidth: 1.5,
+    borderColor: '#D97706',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  chipGridH: {
+    position: 'absolute',
+    top: 14,
+    left: 0,
+    right: 0,
+    height: 1,
+    backgroundColor: '#B45309',
+    opacity: 0.4,
+  },
+  chipGridV: {
+    position: 'absolute',
+    left: 18,
+    top: 0,
+    bottom: 0,
+    width: 1,
+    backgroundColor: '#B45309',
+    opacity: 0.4,
+  },
+  simOwnerPhoneNumber: {
+    fontSize: 23,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    fontVariant: ['tabular-nums'],
+    letterSpacing: -0.5,
+  },
+  simRhythmRow: {
+    marginTop: 4,
+  },
+  rhythmPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    paddingHorizontal: 8,
+    paddingVertical: 2.5,
+    borderRadius: BorderRadius.full,
+  },
+  rhythmPillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#FDE68A',
+  },
+  simDefaultHintText: {
+    fontSize: 11.5,
+    color: '#94A3B8',
+  },
+
+  // Glass Footer on SIM Card
+  simGlassFooter: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    alignItems: 'center',
+    zIndex: 2,
+  },
+  glassFooterCol: {
+    flex: 1,
+  },
+  glassFooterColRight: {
+    flex: 0.8,
+    alignItems: 'flex-end',
+  },
+  glassFooterDivider: {
+    width: 1,
+    height: 24,
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    marginHorizontal: 8,
+  },
+  glassFooterLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#94A3B8',
+    marginBottom: 2,
+  },
+  glassFooterValue: {
+    fontSize: 13.5,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    fontVariant: ['tabular-nums'],
+  },
+  actionArrowRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  glassActionText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#E2E8F0',
+  },
+
+  // 4. Quick Actions Bento Grid
   quickActionGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -1246,7 +1320,7 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
 
-  // 6. Active Deals & Contracts
+  // 5. Active Deals & Contracts (Danh sách giao dịch)
   emptyDealCard: {
     backgroundColor: Colors.surface,
     borderRadius: 24,
@@ -1398,7 +1472,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
 
-  // 7. Trust Center Stack
+  // 6. Trust Center Stack
   trustCenterStack: {
     gap: Spacing.sm,
   },
